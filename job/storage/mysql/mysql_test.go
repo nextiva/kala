@@ -12,7 +12,7 @@ import (
 	mysqltest "github.com/lestrrat-go/test-mysqld"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ajvb/kala/job"
+	"github.com/nextiva/nextkala/job"
 )
 
 func NewTestDb() (*DB, sqlmock.Sqlmock) {
