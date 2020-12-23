@@ -215,6 +215,7 @@ func (a *ApiTestSuite) TestEditJobSuccess() {
 	a.Equal(resp.StatusCode, http.StatusOK)
 
 	retrievedJob, err := cache.Get(j.Id)
+	a.NoError(err)
 	a.Equal(retrievedJob.Id, j.Id)
 	a.Equal(retrievedJob.Id, jobResp.Job.Id)
 	a.NotEqual(retrievedJob.Name, j.Name)

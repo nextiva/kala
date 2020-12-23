@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nextiva/nextkala/utils/iso8601"
 	"github.com/mixer/clock"
+	"github.com/nextiva/nextkala/utils/iso8601"
 	uuid "github.com/nu7hatch/gouuid"
 
 	log "github.com/sirupsen/logrus"
@@ -200,7 +200,10 @@ func (j *Job) Init(cache JobCache) error {
 	}
 
 	/// set the id if not provided.
-	j.setID()
+	err = j.setID()
+	if err != nil {
+		return err
+	}
 
 	// Add Job to the cache.
 	j.lock.Unlock()
