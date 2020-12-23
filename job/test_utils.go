@@ -3,6 +3,7 @@ package job
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -97,7 +98,7 @@ func GetMockJobStats(oldDate time.Time, count int) []*JobStat {
 	stats := make([]*JobStat, 0)
 	for i := 1; i <= count; i++ {
 		el := &JobStat{
-			JobId:             "stats-id-" + string(i),
+			JobId:             "stats-id-" + strconv.Itoa(i),
 			NumberOfRetries:   0,
 			ExecutionDuration: 10000,
 			Success:           true,

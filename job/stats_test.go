@@ -24,7 +24,7 @@ func TestJobStats(t *testing.T) {
 	assert.NotNil(t, j.Stats[0].ExecutionDuration)
 	/// the mock test actually calls the date function and therefore the output
 	/// is not deterministic so test if it's a string of the right length.
-	assert.Equal(t, len(j.Stats[0].Output), 31)
+	assert.Equal(t, 28, len(j.Stats[0].Output))
 }
 
 func TestKalaStats(t *testing.T) {

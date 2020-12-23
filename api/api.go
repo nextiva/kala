@@ -128,7 +128,8 @@ func unmarshalNewJob(r *http.Request) (*job.Job, error) {
 
 // HandleAddJob takes a job object and unmarshals it to a Job type,
 // and then throws the job in the schedulers.
-func HandleAddJob(cache job.JobCache, defaultOwner string, disableLocalJobs bool) func(http.ResponseWriter, *http.Request) {
+func HandleAddJob(cache job.JobCache, defaultOwner string, disableLocalJobs bool) func(http.ResponseWriter,
+	*http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		newJob, err := unmarshalNewJob(r)
 		if err != nil {
@@ -184,16 +185,17 @@ func HandleJobRequest(cache job.JobCache, disableLocalJobs bool) func(w http.Res
 			return
 		}
 
-		if r.Method == "DELETE" {
+		switch r.Method {
+		case "DELETE":
 			err = j.Delete(cache)
 			if err != nil {
 				errorEncodeJSON(err, http.StatusInternalServerError, w)
 			} else {
 				w.WriteHeader(http.StatusNoContent)
 			}
-		} else if r.Method == "GET" {
+		case "GET":
 			handleGetJob(w, r, j)
-		} else if r.Method == "PUT" {
+		case "PUT":
 			updatedJob, err := unmarshalNewJob(r)
 			if err != nil {
 				errorEncodeJSON(err, http.StatusBadRequest, w)
@@ -342,7 +344,8 @@ func errorEncodeJSON(errToEncode error, status int, w http.ResponseWriter) {
 }
 
 // SetupApiRoutes is used within main to initialize all of the routes
-func SetupApiRoutes(r *mux.Router, cache job.JobCache, defaultOwner string, disableDeleteAll bool, disableLocalJobs bool) {
+func SetupApiRoutes(r *mux.Router, cache job.JobCache, defaultOwner string, disableDeleteAll bool,
+	disableLocalJobs bool) {
 	// Route for creating a job
 	r.HandleFunc(ApiJobPath, HandleAddJob(cache, defaultOwner, disableLocalJobs)).Methods("POST")
 	// Route for deleting all jobs
@@ -363,7 +366,8 @@ func SetupApiRoutes(r *mux.Router, cache job.JobCache, defaultOwner string, disa
 	r.HandleFunc(ApiUrlPrefix+"stats/", HandleKalaStatsRequest(cache)).Methods("GET")
 }
 
-func MakeServer(listenAddr string, cache job.JobCache, defaultOwner string, profile bool, disableDeleteAll bool, disableLocalJobs bool) *http.Server {
+func MakeServer(listenAddr string, cache job.JobCache, defaultOwner string, profile bool, disableDeleteAll bool,
+	disableLocalJobs bool) *http.Server {
 	r := mux.NewRouter()
 	// Allows for the use for /job as well as /job/
 	r.StrictSlash(true)
