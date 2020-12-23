@@ -199,7 +199,7 @@ func (j *Job) Init(cache JobCache) error {
 		return err
 	}
 
-	/// set the id if not provided.
+	// set the id if not provided.
 	err = j.setID()
 	if err != nil {
 		return err

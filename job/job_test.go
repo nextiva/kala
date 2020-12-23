@@ -1103,7 +1103,7 @@ func TestOnFailureJobDoesntTriggerOnSuccess(t *testing.T) {
 func TestSetID(t *testing.T) {
 	mockJob := GetMockJobWithGenericSchedule(time.Now())
 
-	/// no id before init.
+	// no id before init.
 	assert.Equal(t, len(mockJob.Id), 0)
 
 	mockJob.Id = "bespoke id"
