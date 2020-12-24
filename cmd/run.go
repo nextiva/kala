@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"bitbucket.org/nextiva/nextkala/job"
+	"github.com/nextiva/nextkala/job"
 	"github.com/spf13/cobra"
 )
 

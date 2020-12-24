@@ -1,6 +1,6 @@
 FROM golang
 
-WORKDIR /go/src/bitbucket.org/nextiva/nextkala
+WORKDIR /go/src/github.com/nextiva/nextkala
 COPY . .
 RUN go build && mv nextkala /usr/bin
 

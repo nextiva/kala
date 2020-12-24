@@ -1,4 +1,4 @@
-module bitbucket.org/nextiva/nextkala
+module github.com/nextiva/nextkala
 
 go 1.13
 
