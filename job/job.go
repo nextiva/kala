@@ -103,9 +103,6 @@ type Job struct {
 	// Custom properties for the remote job type
 	RemoteProperties RemoteProperties `json:"remote_properties"`
 
-	// Collection of Job Stats
-	Stats []*JobStat `json:"stats"`
-
 	lock sync.RWMutex
 
 	// Says if a job has been executed right numbers of time
@@ -493,7 +490,11 @@ func (j *Job) Run(cache JobCache) {
 	j.lock.Lock()
 	j.Metadata = newMeta
 	if newStat != nil {
-		j.Stats = append(j.Stats, newStat)
+		log.Infof("Saving stat run %+v", newStat)
+		err = cache.SaveRun(newStat)
+		if err != nil {
+			log.Warnf("Unable to save stats for run %+v", newStat)
+		}
 	}
 
 	// Kinda annoying and inefficient that it needs to be done this way.
@@ -549,7 +550,7 @@ func (j *Job) ShouldStartWaiting() bool {
 		return false
 	}
 
-	if j.hasFixedRepetitions() && int(j.timesToRepeat) < len(j.Stats) {
+	if j.hasFixedRepetitions() && int(j.timesToRepeat) < int(j.Metadata.NumberOfFinishedRuns) {
 		return false
 	}
 	return true

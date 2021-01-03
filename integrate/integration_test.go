@@ -17,7 +17,7 @@ import (
 
 func TestIntegrationTest(t *testing.T) {
 
-	jobDB := &job.MockDB{}
+	jobDB := &job.MockDB{Runs: make(map[string]*job.JobStat)}
 	cache := job.NewLockFreeJobCache(jobDB)
 
 	clk := clock.NewMockClock()

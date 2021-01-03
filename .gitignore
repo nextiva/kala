@@ -2,7 +2,6 @@
 *.db
 *.coverprofile
 .vscode/
-kala
 nextkala
 .idea/*
 .DS_Store

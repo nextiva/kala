@@ -9,7 +9,10 @@ NextKala is a fork of [kala](https://github.com/ajvb/kala).
 
 ![Dashboard](assets/job-list.png)
 
-NextKala is a simplistic, modern, and performant job scheduler written in Go.  Features:
+NextKala is a simplistic, modern, and performant job scheduler written in Go. It is an improved version
+of Kala.
+
+Features:
 
 - Single binary
 - No dependencies
@@ -20,12 +23,8 @@ NextKala is a simplistic, modern, and performant job scheduler written in Go.  F
 - Dependent Jobs
 - Persistent with several database drivers
 - Web UI
-
-**Note that it is not battle-tested. Use at your own risk.**
-
-Kala was inspired by the desire for a simpler [Chronos](https://github.com/airbnb/chronos) (developed by Airbnb). Kala is Chronos for the rest of us.
-
-If you need fault tolerance, distributed features, massive scale, then I recommend checking out [Chronos](https://github.com/airbnb/chronos). This is designed to be the Chronos for start-ups.
+- OAuth2 support (to be implemented)
+- May be deployed in a highly available cluster (to be implemented)
 
 ## Installing NextKala
 
@@ -116,17 +115,6 @@ All routes have a prefix of `/api/v1`
     ```bash
     go get github.com/nextiva/nextkala/client
     ```
-
-#### Contrib:
-* [Node.js](https://www.npmjs.com/package/kala-node)
-  ```shell
-  npm install kala-node
-  ```
-
-* [Python](https://github.com/dmajere/kala-python)
-  ```shell
-  pip install git+https://github.com/dmajere/kala-python.git
-  ```
 
 ## Job Data Struct
 
@@ -238,7 +226,9 @@ Examples:
 |Editing a Job | PUT | /api/v1/job/{id}/ |
 |Deleting a Job | DELETE | /api/v1/job/{id}/ |
 |Deleting all Jobs | DELETE | /api/v1/job/all/ |
-|Getting metrics about a certain Job | GET | /api/v1/job/stats/{id}/ |
+|Getting metrics about a certain Job | GET | /api/v1/job/{jobID}/executions/ |
+|Getting metrics about a certain Job Run | GET | /api/v1/job/{jobID}/executions/{runID}/ |
+|Updating the status of a certain Job Run | PUT | /api/v1/job/{jobID}/executions/{runID}/ |
 |Starting a Job manually | POST | /api/v1/job/start/{id}/ |
 |Disabling a Job | POST | /api/v1/job/disable/{id}/ |
 |Enabling a Job | POST | /api/v1/job/enable/{id}/ |
@@ -256,7 +246,7 @@ Example:
 ```bash
 $ curl http://127.0.0.1:8000/api/v1/job/
 {"jobs":{}}
-$ curl http://127.0.0.1:8000/api/v1/job/ -d '{"epsilon": "PT5S", "command": "bash /home/ajvb/gocode/src/github.com/nextiva/nextkala/examples/example-kala-commands/example-command.sh", "name": "test_job", "schedule": "R2/2017-06-04T19:25:16.828696-07:00/PT10S"}'
+$ curl http://127.0.0.1:8000/api/v1/job/ -d '{"epsilon": "PT5S", "command": "bash ~/go/src/github.com/nextiva/nextkala/examples/example-kala-commands/example-command.sh", "name": "test_job", "schedule": "R2/2017-06-04T19:25:16.828696-07:00/PT10S"}'
 {"id":"93b65499-b211-49ce-57e0-19e735cc5abd"}
 
 $ cat create_remote.json
@@ -284,7 +274,7 @@ $ curl http://127.0.0.1:8000/api/v1/job/
         "93b65499-b211-49ce-57e0-19e735cc5abd":{
             "name":"test_job",
             "id":"93b65499-b211-49ce-57e0-19e735cc5abd",
-            "command":"bash /home/ajvb/gocode/src/github.com/nextiva/nextkala/examples/example-kala-commands/example-command.sh",
+            "command":"bash ~/go/src/github.com/nextiva/nextkala/examples/example-kala-commands/example-command.sh",
             "owner":"",
             "disabled":false,
             "dependent_jobs":null,
@@ -358,9 +348,9 @@ $ curl http://127.0.0.1:8000/api/v1/stats/
 There is a command within Kala called `run` which will immediately run a command as Kala would run it live, and then gives you a response on whether it was successful or not. Allows for easier and quicker debugging of commands.
 
 ```bash
-$ kala run "ruby /home/user/ruby/my_ruby_script.rb"
+$ nextkala run "ruby /home/user/ruby/my_ruby_script.rb"
 Command Succeeded!
-$ kala run "ruby /home/user/other_dir/broken_script.rb"
+$ nextkala run "ruby /home/user/other_dir/broken_script.rb"
 FATA[0000] Command Failed with err: exit status 1
 ```
 
@@ -379,17 +369,3 @@ Check out this [example for how to add dependent jobs](https://github.com/nextiv
 * If a child job is deleted, it's parent job will continue to stay around.
 * If a parent job is deleted, unless its child jobs have another parent, they will be deleted as well.
 
-# Original Contributors and Contact
-
-Original Author and Core Maintainer:
-
-* AJ Bahnken / [@ajvbahnken](http://twitter.com/ajvbahnken) / aj@ajvb.me
-
-Original Reviewers:
-
-* Sam Dolan / [@samdolan](https://github.com/samdolan/)
-* Steve Phillips / [@elimisteve](http://twitter.com/elimisteve)
-
-#### Donate
-
-[![Flattr this git repo](http://api.flattr.com/button/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=ajvb&url=https://github.com/nextiva/nextkala&title=Kala&language=&tags=github&category=software)

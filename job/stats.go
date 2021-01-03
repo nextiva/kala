@@ -2,6 +2,8 @@ package job
 
 import (
 	"time"
+
+	uuid "github.com/nu7hatch/gouuid"
 )
 
 // KalaStats is the struct for storing app-level metrics
@@ -70,19 +72,41 @@ func NewKalaStats(cache JobCache) *KalaStats {
 	return ks
 }
 
+type JobStatus string
+
+type jobStatus struct {
+	Started JobStatus
+	Running JobStatus
+	Failed  JobStatus
+	Success JobStatus
+}
+
+var (
+	Status = &jobStatus{
+		Started: JobStatus("Started"),
+		Running: JobStatus("Running"),
+		Failed:  JobStatus("Failed"),
+		Success: JobStatus("Success"),
+	}
+)
+
 // JobStat is used to store metrics about a specific Job .Run()
 type JobStat struct {
+	Id                string        `json:"id"`
 	JobId             string        `json:"job_id"`
 	RanAt             time.Time     `json:"ran_at"`
 	NumberOfRetries   uint          `json:"number_of_retries"`
-	Success           bool          `json:"success"`
+	Status            JobStatus     `json:"status"`
 	ExecutionDuration time.Duration `json:"execution_duration"`
 	Output            string        `json:"output"`
 }
 
-func NewJobStat(id string) *JobStat {
+func NewJobStat(jobId string) *JobStat {
+	u4, _ := uuid.NewV4()
+
 	return &JobStat{
-		JobId: id,
+		Id:    u4.String(),
+		JobId: jobId,
 		RanAt: time.Now(),
 	}
 }

@@ -13,7 +13,7 @@ import (
 var cfgFile string
 
 var RootCmd = &cobra.Command{
-	Use:   "kala",
+	Use:   "nextkala",
 	Short: "Modern job scheduler",
 	Long:  `See https://github.com/nextiva/nextkala for documentation.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -23,7 +23,7 @@ var RootCmd = &cobra.Command{
 
 func init() {
 	cobra.OnInitialize(initViper)
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "kala", "", "config file (default is $HOME/kala.yaml)")
+	RootCmd.PersistentFlags().StringVar(&cfgFile, "nextkala", "", "config file (default is $HOME/nextkala.yaml)")
 }
 
 func initViper() {
@@ -37,10 +37,10 @@ func initViper() {
 		}
 
 		viper.AddConfigPath(home)
-		viper.SetConfigName("kala")
+		viper.SetConfigName("nextkala")
 	}
 
-	viper.SetEnvPrefix("kala")
+	viper.SetEnvPrefix("nextkala")
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 

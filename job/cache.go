@@ -25,6 +25,12 @@ type JobCache interface {
 	Persist() error
 	Enable(j *Job) error
 	Disable(j *Job) error
+	SaveRun(run *JobStat) error
+	UpdateRun(run *JobStat) error
+	DeleteRun(runId string) error
+	GetAllRuns(jobID string) ([]*JobStat, error)
+	GetRun(runID string) (*JobStat, error)
+	ClearExpiredRuns() error
 }
 
 type JobsMap struct {
@@ -42,9 +48,8 @@ func NewJobsMap() *JobsMap {
 type MemoryJobCache struct {
 	// Jobs is a map from Job id's to pointers to the jobs.
 	// Used as the main "data store" within this cache implementation.
-	jobs           *JobsMap
-	jobDB          JobDB
-	PersistOnWrite bool
+	jobs  *JobsMap
+	jobDB JobDB
 }
 
 func NewMemoryJobCache(jobDB JobDB) *MemoryJobCache {
@@ -54,10 +59,7 @@ func NewMemoryJobCache(jobDB JobDB) *MemoryJobCache {
 	}
 }
 
-func (c *MemoryJobCache) Start(persistWaitTime time.Duration) {
-	if persistWaitTime == 0 {
-		c.PersistOnWrite = true
-	}
+func (c *MemoryJobCache) Start() {
 
 	// Prep cache
 	allJobs, err := c.jobDB.GetAll()
@@ -72,11 +74,6 @@ func (c *MemoryJobCache) Start(persistWaitTime time.Duration) {
 		if err != nil {
 			log.Errorln(err)
 		}
-	}
-
-	// Occasionally, save items in cache to db.
-	if persistWaitTime > 0 {
-		go c.PersistEvery(persistWaitTime)
 	}
 
 	// Process-level defer for shutting down the db.
@@ -120,10 +117,8 @@ func (c *MemoryJobCache) Set(j *Job) error {
 		return nil
 	}
 
-	if c.PersistOnWrite {
-		if err := c.jobDB.Save(j); err != nil {
-			return err
-		}
+	if err := c.jobDB.Save(j); err != nil {
+		return err
 	}
 
 	c.jobs.Jobs[j.Id] = j
@@ -143,10 +138,7 @@ func (c *MemoryJobCache) Delete(id string) error {
 
 	err := c.jobDB.Delete(id)
 	if err != nil {
-		err = fmt.Errorf("Error occurred while trying to delete job from db: %s", err)
-		if c.PersistOnWrite {
-			return err
-		}
+		return fmt.Errorf("Error occurred while trying to delete job from db: %s", err)
 	}
 
 	j.lock.Unlock()
@@ -169,13 +161,39 @@ func (c *MemoryJobCache) Delete(id string) error {
 }
 
 func (c *MemoryJobCache) Enable(j *Job) error {
-	return enable(j, c, c.PersistOnWrite)
+	return enable(j, c)
 }
 
 // Disable stops a job from running by stopping its jobTimer. It also sets Job.Disabled to true,
 // which is reflected in the UI.
 func (c *MemoryJobCache) Disable(j *Job) error {
-	return disable(j, c, c.PersistOnWrite)
+	return disable(j, c)
+}
+
+func (c *MemoryJobCache) SaveRun(run *JobStat) error {
+	err := c.jobDB.SaveRun(run)
+
+	return err
+}
+
+func (c *MemoryJobCache) GetAllRuns(jobID string) ([]*JobStat, error) {
+	return c.jobDB.GetAllRuns(jobID)
+}
+
+func (c *MemoryJobCache) GetRun(runID string) (*JobStat, error) {
+	return c.jobDB.GetRun(runID)
+}
+
+func (c *MemoryJobCache) UpdateRun(run *JobStat) error {
+	return c.jobDB.UpdateRun(run)
+}
+
+func (c *MemoryJobCache) DeleteRun(runId string) error {
+	return c.jobDB.DeleteRun(runId)
+}
+
+func (c *MemoryJobCache) ClearExpiredRuns() error {
+	return c.jobDB.ClearExpiredRuns()
 }
 
 func (c *MemoryJobCache) Persist() error {
@@ -190,38 +208,21 @@ func (c *MemoryJobCache) Persist() error {
 	return nil
 }
 
-func (c *MemoryJobCache) PersistEvery(persistWaitTime time.Duration) {
-	wait := time.NewTicker(persistWaitTime).C
-	var err error
-	for {
-		<-wait
-		err = c.Persist()
-		if err != nil {
-			log.Errorf("Error occurred persisting the database. Err: %s", err)
-		}
-	}
-}
-
 type LockFreeJobCache struct {
 	jobs            *hashmap.HashMap
 	jobDB           JobDB
 	retentionPeriod time.Duration
-	PersistOnWrite  bool
 	Clock
 }
 
 func NewLockFreeJobCache(jobDB JobDB) *LockFreeJobCache {
 	return &LockFreeJobCache{
-		jobs:            hashmap.New(8), //nolint:gomnd
-		jobDB:           jobDB,
-		retentionPeriod: -1,
+		jobs:  hashmap.New(8), //nolint:gomnd
+		jobDB: jobDB,
 	}
 }
 
-func (c *LockFreeJobCache) Start(persistWaitTime time.Duration, jobstatTtl time.Duration) {
-	if persistWaitTime == 0 {
-		c.PersistOnWrite = true
-	}
+func (c *LockFreeJobCache) Start(jobstatTtl time.Duration) {
 
 	// Prep cache
 	allJobs, err := c.jobDB.GetAll()
@@ -242,15 +243,11 @@ func (c *LockFreeJobCache) Start(persistWaitTime time.Duration, jobstatTtl time.
 			log.Errorln(err)
 		}
 	}
-	// Occasionally, save items in cache to db.
-	if persistWaitTime > 0 {
-		go c.PersistEvery(persistWaitTime)
-	}
 
 	// Run retention every minute to clean up old job stats entries
 	if jobstatTtl > 0 {
 		c.retentionPeriod = jobstatTtl
-		go c.RetainEvery(1 * time.Minute)
+		go c.clearJobStats(1 * time.Minute)
 	}
 
 	// Process-level defer for shutting down the db.
@@ -296,10 +293,8 @@ func (c *LockFreeJobCache) Set(j *Job) error {
 		return nil
 	}
 
-	if c.PersistOnWrite {
-		if err := c.jobDB.Save(j); err != nil {
-			return err
-		}
+	if err := c.jobDB.Save(j); err != nil {
+		return err
 	}
 
 	c.jobs.Set(j.Id, j)
@@ -316,10 +311,7 @@ func (c *LockFreeJobCache) Delete(id string) error {
 
 	err = c.jobDB.Delete(id)
 	if err != nil {
-		err = fmt.Errorf("Error occurred while trying to delete job from db: %s", err)
-		if c.PersistOnWrite {
-			return err
-		}
+		return fmt.Errorf("Error occurred while trying to delete job from db: %s", err)
 	}
 
 	j.lock.Unlock()
@@ -340,13 +332,39 @@ func (c *LockFreeJobCache) Delete(id string) error {
 }
 
 func (c *LockFreeJobCache) Enable(j *Job) error {
-	return enable(j, c, c.PersistOnWrite)
+	return enable(j, c)
 }
 
 // Disable stops a job from running by stopping its jobTimer. It also sets Job.Disabled to true,
 // which is reflected in the UI.
 func (c *LockFreeJobCache) Disable(j *Job) error {
-	return disable(j, c, c.PersistOnWrite)
+	return disable(j, c)
+}
+
+func (c *LockFreeJobCache) SaveRun(run *JobStat) error {
+	err := c.jobDB.SaveRun(run)
+
+	return err
+}
+
+func (c *LockFreeJobCache) GetAllRuns(jobID string) ([]*JobStat, error) {
+	return c.jobDB.GetAllRuns(jobID)
+}
+
+func (c *LockFreeJobCache) GetRun(runID string) (*JobStat, error) {
+	return c.jobDB.GetRun(runID)
+}
+
+func (c *LockFreeJobCache) UpdateRun(run *JobStat) error {
+	return c.jobDB.UpdateRun(run)
+}
+
+func (c *LockFreeJobCache) DeleteRun(runId string) error {
+	return c.jobDB.DeleteRun(runId)
+}
+
+func (c *LockFreeJobCache) ClearExpiredRuns() error {
+	return c.jobDB.ClearExpiredRuns()
 }
 
 func (c *LockFreeJobCache) Persist() error {
@@ -363,57 +381,12 @@ func (c *LockFreeJobCache) Persist() error {
 	return nil
 }
 
-func (c *LockFreeJobCache) PersistEvery(persistWaitTime time.Duration) {
-	wait := time.NewTicker(persistWaitTime).C
-	var err error
-	for {
-		<-wait
-		err = c.Persist()
-		if err != nil {
-			log.Errorf("Error occurred persisting the database. Err: %s", err)
-		}
-	}
-}
-
-func (c *LockFreeJobCache) locateJobStatsIndexForRetention(stats []*JobStat) (marker int) {
-	now := time.Now()
-	expiresAt := now.Add(-c.retentionPeriod)
-	pos := -1
-	for i, el := range stats {
-		diff := el.RanAt.Sub(expiresAt)
-		if diff < 0 {
-			pos = i
-		}
-	}
-	return pos
-}
-
-func (c *LockFreeJobCache) Retain() error {
-	for el := range c.jobs.Iter() {
-		job := el.Value.(*Job)
-		c.compactJobStats(job)
-	}
-	return nil
-}
-
-func (c *LockFreeJobCache) compactJobStats(job *Job) {
-	job.lock.Lock()
-	defer job.lock.Unlock()
-	pos := c.locateJobStatsIndexForRetention(job.Stats)
-	if pos >= 0 {
-		log.Infof("JobStats TTL: removing %d items", pos+1)
-		tmp := make([]*JobStat, len(job.Stats)-pos-1)
-		copy(tmp, job.Stats[pos+1:])
-		job.Stats = tmp
-	}
-}
-
-func (c *LockFreeJobCache) RetainEvery(retentionWaitTime time.Duration) {
+func (c *LockFreeJobCache) clearJobStats(retentionWaitTime time.Duration) {
 	wait := time.NewTicker(retentionWaitTime).C
 	var err error
 	for {
 		<-wait
-		err = c.Retain()
+		err = c.jobDB.ClearExpiredRuns()
 		if err != nil {
 			log.Errorf("Error occurred during invoking retention. Err: %s", err)
 		}

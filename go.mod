@@ -21,8 +21,8 @@ require (
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.4.0
 	github.com/urfave/negroni v1.0.0
-	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82 // indirect
+	golang.org/x/tools v0.0.0-20210102185154-773b96fafca2 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
-	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
+	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.2.5 // indirect
 )

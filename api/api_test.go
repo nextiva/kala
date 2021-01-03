@@ -325,15 +325,15 @@ func (a *ApiTestSuite) TestGetJobSuccess() {
 	a.Equal(resp.StatusCode, http.StatusOK)
 }
 
-func (a *ApiTestSuite) TestHandleListJobStatsRequest() {
+func (a *ApiTestSuite) TestHandleListJobRunsRequest() {
 	cache, j := generateJobAndCache()
 	j.Run(cache)
 
 	r := mux.NewRouter()
-	r.HandleFunc(ApiJobPath+"stats/{id}", HandleListJobStatsRequest(cache)).Methods("GET")
+	r.HandleFunc(ApiJobPath+"executions/{id}/", HandleListJobRunsRequest(cache)).Methods("GET")
 	ts := httptest.NewServer(r)
 
-	_, req := setupTestReq(a.T(), "GET", ts.URL+ApiJobPath+"stats/"+j.Id, nil)
+	_, req := setupTestReq(a.T(), "GET", ts.URL+ApiJobPath+"executions/"+j.Id+"/", nil)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -346,16 +346,15 @@ func (a *ApiTestSuite) TestHandleListJobStatsRequest() {
 	err = json.Unmarshal(body, &jobStatsResp)
 	a.NoError(err)
 
-	a.Equal(len(jobStatsResp.JobStats), 1)
-	a.Equal(jobStatsResp.JobStats[0].JobId, j.Id)
-	a.Equal(jobStatsResp.JobStats[0].NumberOfRetries, uint(0))
-	a.True(jobStatsResp.JobStats[0].Success)
+	a.Equal(1, len(jobStatsResp.JobStats))
+	a.Equal(uint(0), jobStatsResp.JobStats[0].NumberOfRetries)
+	a.Equal(job.Status.Success, jobStatsResp.JobStats[0].Status)
 }
-func (a *ApiTestSuite) TestHandleListJobStatsRequestNotFound() {
+func (a *ApiTestSuite) TestHandleListJobRunsRequestNotFound() {
 	cache, _ := generateJobAndCache()
 	r := mux.NewRouter()
 
-	r.HandleFunc(ApiJobPath+"stats/{id}", HandleListJobStatsRequest(cache)).Methods("GET")
+	r.HandleFunc(ApiJobPath+"executions/{id}", HandleListJobRunsRequest(cache)).Methods("GET")
 	ts := httptest.NewServer(r)
 
 	_, req := setupTestReq(a.T(), "GET", ts.URL+ApiJobPath+"stats/not-a-real-id", nil)
