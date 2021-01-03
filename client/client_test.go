@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/nextiva/nextkala/api"
-	"github.com/nextiva/nextkala/job"
+	job "github.com/nextiva/nextkala/job"
 
 	"testing"
 
@@ -17,7 +17,7 @@ import (
 
 func NewTestServer() *httptest.Server {
 	r := mux.NewRouter()
-	db := &job.MockDB{}
+	db := &job.MockDB{Runs: make(map[string]*job.JobStat)}
 	cache := job.NewLockFreeJobCache(db)
 	api.SetupApiRoutes(r, cache, "", false, false)
 	return httptest.NewServer(r)
@@ -214,9 +214,9 @@ func TestGetJobStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, id, stats[0].JobId)
 	assert.Equal(t, uint(0), stats[0].NumberOfRetries)
-	assert.True(t, stats[0].Success)
+	assert.Equal(t, job.Status.Success, stats[0].Status)
 	assert.True(t, stats[0].ExecutionDuration != time.Duration(0))
-	assert.WithinDuration(t, now, stats[0].RanAt, time.Second)
+	assert.WithinDuration(t, now, stats[0].RanAt, 2*time.Second)
 
 	cleanUp()
 }

@@ -42,7 +42,10 @@ var serveCmd = &cobra.Command{
 		} else {
 			connectionString = parsedPort
 		}
-
+		err := job.InitMailer()
+		if err != nil {
+			log.Errorf("Unable to initialze Mailer due to: %s", err)
+		}
 		var db job.JobDB
 
 		switch viper.GetString("jobdb") {
@@ -55,30 +58,12 @@ var serveCmd = &cobra.Command{
 			log.Fatalf("Unknown Job DB implementation '%s'", viper.GetString("jobdb"))
 		}
 
-		if viper.GetBool("no-persist") {
-			log.Warn("No-persist mode engaged; using in-memory database!")
-			db = &job.MockDB{}
-		}
-
 		// Create cache
 		log.Infof("Preparing cache")
 		cache := job.NewLockFreeJobCache(db)
 
-		// Persistence mode
-		persistEvery := viper.GetInt("persist-every")
-		if viper.GetBool("no-tx-persist") {
-			log.Warnf("Transactional persistence is not enabled; job cache will persist to db every %d seconds", persistEvery)
-		} else {
-			log.Infof("Enabling transactional persistence, plus persist all jobs to db every %d seconds", persistEvery)
-			cache.PersistOnWrite = true
-		}
-
-		if persistEvery < 1 {
-			log.Fatal("With transactional persistence off, you will need to set persist-every to greater than zero.")
-		}
-
 		// Startup cache
-		cache.Start(time.Duration(persistEvery)*time.Second, time.Duration(viper.GetInt("jobstat-ttl"))*time.Minute)
+		cache.Start(time.Duration(viper.GetInt("jobstat-ttl")) * time.Minute)
 
 		// Launch API server
 		log.Infof("Starting server on port %s", connectionString)
@@ -105,11 +90,10 @@ func init() {
 	serveCmd.Flags().String("jobdb-address", "", "Network address for the job database, in 'host:port' format.")
 	serveCmd.Flags().String("jobdb-username", "", "Username for the job database.")
 	serveCmd.Flags().String("jobdb-password", "", "Password for the job database.")
+	serveCmd.Flags().String("jobdb-url", "", "Full connection string")
 	serveCmd.Flags().BoolP("verbose", "v", false, "Set for verbose logging.")
-	serveCmd.Flags().IntP("persist-every", "e", 60*60, "Interval in seconds between persisting all jobs to db") //nolint:gomnd
 	serveCmd.Flags().Int("jobstat-ttl", -1, "Sets the jobstat-ttl in minutes. The default -1 value indicates JobStat entries will be kept forever")
 	serveCmd.Flags().Bool("profile", false, "Activate pprof handlers")
-	serveCmd.Flags().Bool("no-tx-persist", false, "Only persist to db periodically, not transactionally.")
 	serveCmd.Flags().Bool("no-delete-all", false, "Disable the delete all jobs endpoint.")
 	serveCmd.Flags().Bool("no-local-jobs", false, "Disable creating local jobs via API.")
 }

@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	jobBucket = []byte("jobs")
+	jobBucket    = []byte("jobs")
+	jobRunBucket = []byte("job_runs")
 )
 
 func GetBoltDB(path string) *BoltJobDB {
@@ -131,4 +132,105 @@ func (db *BoltJobDB) Save(j *job.Job) error {
 		return nil
 	})
 	return err
+}
+
+// SaveRun persists a Job Run.
+func (db *BoltJobDB) SaveRun(run *job.JobStat) error {
+	err := db.dbConn.Update(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists(jobRunBucket)
+		if err != nil {
+			return err
+		}
+
+		buffer := new(bytes.Buffer)
+		enc := gob.NewEncoder(buffer)
+		err = enc.Encode(run)
+		if err != nil {
+			return err
+		}
+
+		err = bucket.Put([]byte(run.Id), buffer.Bytes())
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return err
+}
+
+// GetAllRuns returns all persisted runs for a job.
+func (db *BoltJobDB) GetAllRuns(jobID string) ([]*job.JobStat, error) {
+	allRuns := make([]*job.JobStat, 0)
+
+	err := db.dbConn.Update(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists(jobRunBucket)
+		if err != nil {
+			return err
+		}
+
+		err = bucket.ForEach(func(k, v []byte) error {
+			buffer := bytes.NewBuffer(v)
+			dec := gob.NewDecoder(buffer)
+			jobStats := new(job.JobStat)
+
+			err = dec.Decode(jobStats)
+			if err != nil {
+				return err
+			}
+
+			allRuns = append(allRuns, jobStats)
+
+			return nil
+		})
+
+		return err
+	})
+
+	return allRuns, err
+}
+
+func (db *BoltJobDB) UpdateRun(jobRun *job.JobStat) error {
+	jobStat, err := db.GetRun(jobRun.Id)
+	if err != nil {
+		return err
+	}
+	jobStat.Status = jobRun.Status
+	return nil
+}
+
+// GetRun returns a persisted job run.
+func (db *BoltJobDB) GetRun(id string) (*job.JobStat, error) {
+	run := new(job.JobStat)
+
+	err := db.dbConn.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(jobRunBucket)
+
+		v := b.Get([]byte(id))
+		if v == nil {
+			return job.ErrJobNotFound(id)
+		}
+
+		buf := bytes.NewBuffer(v)
+		err := gob.NewDecoder(buf).Decode(run)
+
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	run.Id = id
+	return run, nil
+}
+
+func (db *BoltJobDB) DeleteRun(id string) error {
+	err := db.dbConn.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(jobRunBucket)
+		return bucket.Delete([]byte(id))
+	})
+	return err
+}
+
+func (db *BoltJobDB) ClearExpiredRuns() error {
+	return nil
 }

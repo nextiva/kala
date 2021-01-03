@@ -67,9 +67,13 @@ func (j *JobRunner) Run(cache JobCache) (*JobStat, Metadata, error) {
 
 		if err != nil {
 			// Log Error in Metadata
-			// TODO - Error Reporting, email error
 			log.Errorln("Error running job:", j.currentStat.JobId)
 			log.Errorln(err)
+
+			err = NotifyOfJobFailure(j.job, j.currentStat)
+			if err != nil {
+				log.Errorln("Error notifying of job failure:", err)
+			}
 
 			j.meta.ErrorCount++
 			j.meta.LastError = j.job.clk.Time().Now()
@@ -92,6 +96,7 @@ func (j *JobRunner) Run(cache JobCache) (*JobStat, Metadata, error) {
 
 	log.Infof("Job %s:%s finished.", j.job.Name, j.job.Id)
 	log.Debugf("Job %s:%s output: %s", j.job.Name, j.job.Id, out)
+
 	j.meta.SuccessCount++
 	j.meta.NumberOfFinishedRuns++
 	j.meta.LastSuccess = j.job.clk.Time().Now()
@@ -266,7 +271,11 @@ func (j *JobRunner) runSetup() {
 
 func (j *JobRunner) collectStats(success bool) {
 	j.currentStat.ExecutionDuration = j.job.clk.Time().Now().Sub(j.currentStat.RanAt)
-	j.currentStat.Success = success
+	if success {
+		j.currentStat.Status = Status.Success
+	} else {
+		j.currentStat.Status = Status.Failed
+	}
 	j.currentStat.NumberOfRetries = j.job.Retries - j.currentRetries
 }
 

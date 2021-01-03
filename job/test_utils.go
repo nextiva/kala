@@ -3,7 +3,6 @@ package job
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -20,7 +19,9 @@ func (d *MockDBGetAll) GetAll() ([]*Job, error) {
 	return d.response, nil
 }
 
-type MockDB struct{}
+type MockDB struct {
+	Runs map[string]*JobStat
+}
 
 func (m *MockDB) GetAll() ([]*Job, error) {
 	return nil, nil
@@ -38,8 +39,41 @@ func (m *MockDB) Close() error {
 	return nil
 }
 
+func (m *MockDB) SaveRun(jobStat *JobStat) error {
+	m.Runs[jobStat.Id] = jobStat
+	return nil
+}
+
+func (m *MockDB) UpdateRun(jobStat *JobStat) error {
+	m.Runs[jobStat.Id] = jobStat
+	return nil
+}
+
+func (m *MockDB) GetAllRuns(jobID string) ([]*JobStat, error) {
+	stats := make([]*JobStat, 0)
+	for _, value := range m.Runs {
+		if value.JobId == jobID {
+			stats = append(stats, value)
+		}
+	}
+	return stats, nil
+}
+
+func (m *MockDB) GetRun(runID string) (*JobStat, error) {
+	return m.Runs[runID], nil
+}
+
+func (m *MockDB) DeleteRun(jobId string) error {
+	return nil
+}
+
+func (m *MockDB) ClearExpiredRuns() error {
+	return nil
+}
+
 func NewMockCache() *LockFreeJobCache {
-	return NewLockFreeJobCache(&MockDB{})
+	db := &MockDB{Runs: make(map[string]*JobStat)}
+	return NewLockFreeJobCache(db)
 }
 
 func GetMockJob() *Job {
@@ -94,22 +128,6 @@ func GetMockRecurringJobWithSchedule(scheduleTime time.Time, delay string) *Job 
 	return genericMockJob
 }
 
-func GetMockJobStats(oldDate time.Time, count int) []*JobStat {
-	stats := make([]*JobStat, 0)
-	for i := 1; i <= count; i++ {
-		el := &JobStat{
-			JobId:             "stats-id-" + strconv.Itoa(i),
-			NumberOfRetries:   0,
-			ExecutionDuration: 10000,
-			Success:           true,
-			RanAt:             oldDate,
-			Output:            "Fri Nov 20 10:23:02 AM MST 2020",
-		}
-		stats = append(stats, el)
-	}
-	return stats
-}
-
 func GetMockJobWithGenericSchedule(now time.Time) *Job {
 	fiveMinutesFromNow := now.Add(time.Minute * 5)
 	return GetMockJobWithSchedule(2, fiveMinutesFromNow, "P1DT10M10S")
@@ -153,12 +171,14 @@ var _ JobDB = (*MemoryDB)(nil)
 
 type MemoryDB struct {
 	m    map[string]*Job
+	runs map[string]*JobStat
 	lock sync.RWMutex
 }
 
 func NewMemoryDB() *MemoryDB {
 	return &MemoryDB{
-		m: map[string]*Job{},
+		m:    map[string]*Job{},
+		runs: map[string]*JobStat{},
 	}
 }
 
@@ -196,6 +216,38 @@ func (m *MemoryDB) Save(j *Job) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.m[j.Id] = j
+	return nil
+}
+
+func (m *MemoryDB) SaveRun(run *JobStat) error {
+	m.runs[run.Id] = run
+	return nil
+}
+
+func (m *MemoryDB) UpdateRun(jobStat *JobStat) error {
+	m.runs[jobStat.Id] = jobStat
+	return nil
+}
+
+func (m *MemoryDB) GetAllRuns(jobID string) ([]*JobStat, error) {
+	stats := make([]*JobStat, 0)
+	for _, value := range m.runs {
+		if value.JobId == jobID {
+			stats = append(stats, value)
+		}
+	}
+	return stats, nil
+}
+
+func (m *MemoryDB) GetRun(runID string) (*JobStat, error) {
+	return m.runs[runID], nil
+}
+
+func (m *MemoryDB) DeleteRun(id string) error {
+	return nil
+}
+
+func (m *MemoryDB) ClearExpiredRuns() error {
 	return nil
 }
 
