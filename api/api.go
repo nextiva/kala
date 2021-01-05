@@ -393,6 +393,10 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
+			j, err := cache.Get(run.JobId)
+			if err != nil {
+				log.Errorf("Unable to retrieve job %s due to %s: ", run.JobId, err)
+			}
 
 			jobStatus, err := unmarshalJobStatus(r)
 
@@ -402,6 +406,7 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 				return
 			}
 			run.Status = *jobStatus
+			run.ExecutionDuration = j.Now().Sub(run.RanAt)
 
 			err = cache.UpdateRun(run)
 			if err != nil {

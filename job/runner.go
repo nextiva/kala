@@ -58,6 +58,11 @@ func (j *JobRunner) Run(cache JobCache) (*JobStat, Metadata, error) {
 		case j.job.JobType == LocalJob:
 			out, err = j.LocalRun()
 		case j.job.JobType == RemoteJob:
+			j.currentStat.Status = Status.Started
+			err = cache.SaveRun(j.currentStat)
+			if err != nil {
+				log.Errorf("Error saving initial job status: %s", err)
+			}
 			out, err = j.RemoteRun()
 		default:
 			err = ErrJobTypeInvalid
@@ -84,7 +89,7 @@ func (j *JobRunner) Run(cache JobCache) (*JobStat, Metadata, error) {
 				continue
 			}
 
-			j.collectStats(false)
+			j.collectStats(Status.Failed)
 			j.meta.NumberOfFinishedRuns++
 
 			// TODO: Wrap error into something better.
@@ -101,7 +106,12 @@ func (j *JobRunner) Run(cache JobCache) (*JobStat, Metadata, error) {
 	j.meta.NumberOfFinishedRuns++
 	j.meta.LastSuccess = j.job.clk.Time().Now()
 
-	j.collectStats(true)
+	if j.job.JobType == RemoteJob {
+		// Stats have already been saved.
+		j.currentStat = nil
+	} else {
+		j.collectStats(Status.Success)
+	}
 
 	// Run Dependent Jobs
 	if len(j.job.DependentJobs) != 0 {
@@ -134,7 +144,6 @@ func (j *JobRunner) RemoteRun() (string, error) {
 		ctx, cncl = context.WithTimeout(ctx, timeout)
 		defer cncl()
 	}
-
 	// Get the actual url and body we're going to be using,
 	// including any necessary templating.
 	url, err := j.tryTemplatize(j.job.RemoteProperties.Url)
@@ -264,18 +273,15 @@ func (j *JobRunner) shouldRetry() bool {
 func (j *JobRunner) runSetup() {
 	// Setup Job Stat
 	j.currentStat = NewJobStat(j.job.Id)
+	j.currentStat.Status = Status.Success
 
 	// Init retries
 	j.currentRetries = j.job.Retries
 }
 
-func (j *JobRunner) collectStats(success bool) {
+func (j *JobRunner) collectStats(status JobStatus) {
 	j.currentStat.ExecutionDuration = j.job.clk.Time().Now().Sub(j.currentStat.RanAt)
-	if success {
-		j.currentStat.Status = Status.Success
-	} else {
-		j.currentStat.Status = Status.Failed
-	}
+	j.currentStat.Status = status
 	j.currentStat.NumberOfRetries = j.job.Retries - j.currentRetries
 }
 
