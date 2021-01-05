@@ -383,7 +383,7 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 			w.Header().Set(contentType, jsonContentType)
 			w.WriteHeader(http.StatusOK)
 			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Errorf("Error occurred when marshaling response: %s", err)
+				log.Errorf("Error occurred when marshaling response: %v", err)
 				return
 			}
 		case "PUT":
@@ -392,6 +392,10 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 				log.Errorf("Error occurred when trying to get job execution #{runID}.")
 				w.WriteHeader(http.StatusNotFound)
 				return
+			}
+			j, err := cache.Get(run.JobId)
+			if err != nil {
+				log.Errorf("Unable to retrieve job %s due to %v: ", run.JobId, err)
 			}
 
 			jobStatus, err := unmarshalJobStatus(r)
@@ -402,6 +406,7 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 				return
 			}
 			run.Status = *jobStatus
+			run.ExecutionDuration = j.Now().Sub(run.RanAt)
 
 			err = cache.UpdateRun(run)
 			if err != nil {

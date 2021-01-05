@@ -92,7 +92,7 @@ func (kc *KalaClient) do(method, url string, expectedStatus int, payload, target
 	return resp.StatusCode, kc.decode(resp.Body, target)
 }
 
-// CreateJob is used for creating a new job within Kala. Note that the
+// CreateJob is used for creating a new job within NextKala. Note that the
 // Name and Command fields are the only ones that are required.
 // Example:
 // 		c := New("http://127.0.0.1:8000")

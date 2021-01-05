@@ -594,6 +594,10 @@ func (j *Job) SetClock(clk clock.Clock) {
 	j.clk.SetClock(clk)
 }
 
+func (j *Job) Now() time.Time {
+	return j.clk.Now()
+}
+
 // Type alias for the recursive call
 type RJob Job
 
