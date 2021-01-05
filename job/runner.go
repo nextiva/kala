@@ -61,7 +61,7 @@ func (j *JobRunner) Run(cache JobCache) (*JobStat, Metadata, error) {
 			j.currentStat.Status = Status.Started
 			err = cache.SaveRun(j.currentStat)
 			if err != nil {
-				log.Errorf("Error saving initial job status: %s", err)
+				log.Errorf("Error saving initial job status: %v", err)
 			}
 			out, err = j.RemoteRun()
 		default:
