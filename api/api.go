@@ -28,6 +28,11 @@ const (
 
 	contentType     = "Content-Type"
 	jsonContentType = "application/json;charset=UTF-8"
+
+	httpDelete = "DELETE"
+	httpGet    = "GET"
+	httpPost   = "POST"
+	httpPut    = "PUT"
 )
 
 type KalaStatsResponse struct {
@@ -176,16 +181,16 @@ func HandleJobRequest(cache job.JobCache, disableLocalJobs bool) func(w http.Res
 		}
 
 		switch r.Method {
-		case "DELETE":
+		case httpDelete:
 			err = j.Delete(cache)
 			if err != nil {
 				errorEncodeJSON(err, http.StatusInternalServerError, w)
 			} else {
 				w.WriteHeader(http.StatusNoContent)
 			}
-		case "GET":
+		case httpGet:
 			handleGetJob(w, r, j)
-		case "PUT":
+		case httpPut:
 			updatedJob, err := unmarshalNewJob(r)
 			if err != nil {
 				errorEncodeJSON(err, http.StatusBadRequest, w)
@@ -208,6 +213,58 @@ func HandleJobRequest(cache job.JobCache, disableLocalJobs bool) func(w http.Res
 			}
 
 			handleGetJob(w, r, updatedJob)
+		}
+	}
+}
+
+// HandleJobParamsRequest handles requests to /api/v1/job/{id}/params to either
+// return the remote job's parameters on a GET or replace them on a PUT.
+// or updates the job if its a PUT request.
+func HandleJobParamsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := mux.Vars(r)["id"]
+
+		j, err := cache.Get(id)
+		if err != nil {
+			log.Errorf("Error occurred when trying to get job %s: %v", id, err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if j == nil {
+			log.Errorf("No job returned from the cached for job %s", id)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if j.JobType != job.RemoteJob {
+			log.Errorf("Non remote job %s. Job params cannot be modified.", id)
+			errorEncodeJSON(errors.New("Job is not a remote job"), http.StatusForbidden, w)
+			return
+		}
+
+		switch r.Method {
+		case httpGet:
+			w.Header().Set(contentType, jsonContentType)
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, j.RemoteProperties.Body)
+
+		case httpPut:
+			bodyBytes, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				log.Errorf("Unable to retrieve new job parameters: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			j.RemoteProperties.Body = string(bodyBytes)
+			err = cache.Set(j)
+			if err != nil {
+				log.Errorf("Unable to update job %s: %v", id, err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
 		}
 	}
 }
@@ -368,7 +425,7 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 		runID := mux.Vars(r)["id"]
 
 		switch r.Method {
-		case "GET":
+		case httpGet:
 			run, err := cache.GetRun(runID)
 			if err != nil {
 				log.Errorf("Error occurred when trying to get job execution #{runID}.")
@@ -386,7 +443,7 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 				log.Errorf("Error occurred when marshaling response: %v", err)
 				return
 			}
-		case "PUT":
+		case httpPut:
 			run, err := cache.GetRun(runID)
 			if err != nil {
 				log.Errorf("Error occurred when trying to get job execution #{runID}.")
@@ -438,25 +495,27 @@ func errorEncodeJSON(errToEncode error, status int, w http.ResponseWriter) {
 func SetupApiRoutes(r *mux.Router, cache job.JobCache, defaultOwner string, disableDeleteAll bool,
 	disableLocalJobs bool) {
 	// Route for creating a job
-	r.HandleFunc(ApiJobPath, HandleAddJob(cache, defaultOwner, disableLocalJobs)).Methods("POST")
+	r.HandleFunc(ApiJobPath, HandleAddJob(cache, defaultOwner, disableLocalJobs)).Methods(httpPost)
 	// Route for deleting all jobs
-	r.HandleFunc(ApiJobPath+"all/", HandleDeleteAllJobs(cache, disableDeleteAll)).Methods("DELETE")
+	r.HandleFunc(ApiJobPath+"all/", HandleDeleteAllJobs(cache, disableDeleteAll)).Methods(httpDelete)
 	// Route for deleting, editing and getting a job
-	r.HandleFunc(ApiJobPath+"{id}/", HandleJobRequest(cache, disableLocalJobs)).Methods("DELETE", "GET", "PUT")
+	r.HandleFunc(ApiJobPath+"{id}/", HandleJobRequest(cache, disableLocalJobs)).Methods(httpDelete, httpGet, httpPut)
+	// Route for updating a remote job's parameters.
+	r.HandleFunc(ApiJobPath+"{id}/params/", HandleJobParamsRequest(cache)).Methods(httpGet, httpPut)
 	// Route for listing all jops
-	r.HandleFunc(ApiJobPath, HandleListJobsRequest(cache)).Methods("GET")
+	r.HandleFunc(ApiJobPath, HandleListJobsRequest(cache)).Methods(httpGet)
 	// Route for manually start a job
-	r.HandleFunc(ApiJobPath+"start/{id}/", HandleStartJobRequest(cache)).Methods("POST")
+	r.HandleFunc(ApiJobPath+"start/{id}/", HandleStartJobRequest(cache)).Methods(httpPost)
 	// Route for manually start a job
-	r.HandleFunc(ApiJobPath+"enable/{id}/", HandleEnableJobRequest(cache)).Methods("POST")
+	r.HandleFunc(ApiJobPath+"enable/{id}/", HandleEnableJobRequest(cache)).Methods(httpPost)
 	// Route for manually disable a job
-	r.HandleFunc(ApiJobPath+"disable/{id}/", HandleDisableJobRequest(cache)).Methods("POST")
+	r.HandleFunc(ApiJobPath+"disable/{id}/", HandleDisableJobRequest(cache)).Methods(httpPost)
 	// Route for getting app-level metrics
-	r.HandleFunc(ApiUrlPrefix+"stats/", HandleKalaStatsRequest(cache)).Methods("GET")
+	r.HandleFunc(ApiUrlPrefix+"stats/", HandleKalaStatsRequest(cache)).Methods(httpGet)
 	// Route for a single job execution actions
-	r.HandleFunc(ApiJobPath+"{job_id}/executions/{id}/", HandleJobRunRequest(cache)).Methods("GET", "PUT")
+	r.HandleFunc(ApiJobPath+"{job_id}/executions/{id}/", HandleJobRunRequest(cache)).Methods(httpGet, httpPut)
 	// Route for a single job execution actions
-	r.HandleFunc(ApiJobPath+"{id}/executions/", HandleListJobRunsRequest(cache)).Methods("GET")
+	r.HandleFunc(ApiJobPath+"{id}/executions/", HandleListJobRunsRequest(cache)).Methods(httpGet)
 }
 
 func MakeServer(listenAddr string, cache job.JobCache, defaultOwner string, profile bool, disableDeleteAll bool,

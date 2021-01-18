@@ -52,6 +52,13 @@ func generateJobAndCache() (*job.LockFreeJobCache, *job.Job) {
 	return cache, j
 }
 
+func generateRemoteJobAndCache() (*job.LockFreeJobCache, *job.Job) {
+	cache, j := generateJobAndCache()
+	j.RemoteProperties = job.RemoteProperties{Url: "http://localhost:8888/hello"}
+	j.JobType = job.RemoteJob
+	return cache, j
+}
+
 type ApiTestSuite struct {
 	suite.Suite
 }
@@ -220,6 +227,49 @@ func (a *ApiTestSuite) TestEditJobSuccess() {
 	a.Equal(retrievedJob.Id, jobResp.Job.Id)
 	a.NotEqual(retrievedJob.Name, j.Name)
 	a.NotEqual(retrievedJob.Owner, j.Owner)
+}
+
+func (a *ApiTestSuite) TestGetParams() {
+	t := a.T()
+	cache, j := generateRemoteJobAndCache()
+
+	r := mux.NewRouter()
+	r.HandleFunc(ApiJobPath+"{id}/params/", HandleJobParamsRequest(cache)).Methods("PUT", "GET")
+	ts := httptest.NewServer(r)
+
+	_, req := setupTestReq(t, "GET", ts.URL+ApiJobPath+j.Id+"/params/", nil)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	a.NoError(err)
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	a.NoError(err)
+	resp.Body.Close()
+	body := string(bodyBytes)
+	a.Equal(j.RemoteProperties.Body, body)
+}
+
+func (a *ApiTestSuite) TestPutParams() {
+	t := a.T()
+	cache, j := generateRemoteJobAndCache()
+
+	r := mux.NewRouter()
+	r.HandleFunc(ApiJobPath+"{id}/params/", HandleJobParamsRequest(cache)).Methods("PUT", "GET")
+	ts := httptest.NewServer(r)
+
+	newBody := "Hello"
+	_, req := setupTestReq(t, "PUT", ts.URL+ApiJobPath+j.Id+"/params/", []byte(newBody))
+
+	client := &http.Client{}
+	_, err := client.Do(req)
+	a.NoError(err)
+
+	j, err = cache.Get(j.Id)
+
+	a.NoError(err)
+	a.NotNil(j, "No job found")
+	a.Equal(newBody, j.RemoteProperties.Body)
 }
 
 func (a *ApiTestSuite) TestEditJobLocalDisabledFailure() {
