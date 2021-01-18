@@ -16,7 +16,6 @@ import (
 var (
 	jobBucket    = []byte("jobs")
 	jobRunBucket = []byte("job_runs")
-	jobSchedule  = []byte("schedule")
 )
 
 func GetBoltDB(path string) *BoltJobDB {

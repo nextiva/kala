@@ -53,7 +53,7 @@ func generateJobAndCache() (*job.LockFreeJobCache, *job.Job) {
 }
 
 func generateRemoteJobAndCache() (*job.LockFreeJobCache, *job.Job) {
-	cache, j := generateJobAndCache();
+	cache, j := generateJobAndCache()
 	j.RemoteProperties = job.RemoteProperties{Url: "http://localhost:8888/hello"}
 	j.JobType = job.RemoteJob
 	return cache, j
@@ -267,6 +267,7 @@ func (a *ApiTestSuite) TestPutParams() {
 
 	j, err = cache.Get(j.Id)
 
+	a.NoError(err)
 	a.NotNil(j, "No job found")
 	a.Equal(newBody, j.RemoteProperties.Body)
 }
