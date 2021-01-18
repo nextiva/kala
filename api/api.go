@@ -212,6 +212,59 @@ func HandleJobRequest(cache job.JobCache, disableLocalJobs bool) func(w http.Res
 	}
 }
 
+// HandleJobParamsRequest handles requests to /api/v1/job/{id}/params to either
+// return the remote job's parameters on a GET or replace them on a PUT.
+// or updates the job if its a PUT request.
+func HandleJobParamsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := mux.Vars(r)["id"]
+
+		j, err := cache.Get(id)
+		if err != nil {
+			log.Errorf("Error occurred when trying to get job %s: %v", id, err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if j == nil {
+			log.Errorf("No job returned from the cached for job %s", id)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if j.JobType != job.RemoteJob {
+			log.Errorf("Non remote job %s. Job params cannot be modified.", id)
+			errorEncodeJSON(errors.New("Job is not a remote job"), http.StatusForbidden, w)
+			return
+		}
+
+		switch r.Method {
+		case "GET":
+			w.Header().Set(contentType, jsonContentType)
+			w.WriteHeader(http.StatusOK)
+			_,_ = io.WriteString(w, j.RemoteProperties.Body)
+
+		case "PUT":
+			bodyBytes, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				log.Errorf("Unable to retrieve new job parameters: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			j.RemoteProperties.Body = string(bodyBytes)
+			err = cache.Set(j)
+			if err != nil {
+				log.Errorf("Unable to update job %s: %v", id, err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}
+}
+
+
 // HandleDeleteAllJobs is the handler for deleting all jobs
 // DELETE /api/v1/job/all
 func HandleDeleteAllJobs(cache job.JobCache, disableDeleteAll bool) func(w http.ResponseWriter, r *http.Request) {
@@ -443,6 +496,8 @@ func SetupApiRoutes(r *mux.Router, cache job.JobCache, defaultOwner string, disa
 	r.HandleFunc(ApiJobPath+"all/", HandleDeleteAllJobs(cache, disableDeleteAll)).Methods("DELETE")
 	// Route for deleting, editing and getting a job
 	r.HandleFunc(ApiJobPath+"{id}/", HandleJobRequest(cache, disableLocalJobs)).Methods("DELETE", "GET", "PUT")
+	// Route for updating a remote job's parameters.
+	r.HandleFunc(ApiJobPath+"{id}/params/", HandleJobParamsRequest(cache)).Methods("GET", "PUT")
 	// Route for listing all jops
 	r.HandleFunc(ApiJobPath, HandleListJobsRequest(cache)).Methods("GET")
 	// Route for manually start a job

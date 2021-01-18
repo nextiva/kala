@@ -16,6 +16,7 @@ import (
 var (
 	jobBucket    = []byte("jobs")
 	jobRunBucket = []byte("job_runs")
+	jobSchedule  = []byte("schedule")
 )
 
 func GetBoltDB(path string) *BoltJobDB {
@@ -195,7 +196,7 @@ func (db *BoltJobDB) UpdateRun(jobRun *job.JobStat) error {
 		return err
 	}
 	jobStat.Status = jobRun.Status
-	return nil
+	return db.SaveRun(jobStat)
 }
 
 // GetRun returns a persisted job run.

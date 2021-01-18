@@ -72,8 +72,8 @@ func (j *JobRunner) Run(cache JobCache) (*JobStat, Metadata, error) {
 
 		if err != nil {
 			// Log Error in Metadata
-			log.Errorln("Error running job:", j.currentStat.JobId)
-			log.Errorln(err)
+			log.Errorf("Error running job %s with execution id %s: %v", j.currentStat.JobId, j.currentStat.Id,
+				err)
 
 			err = NotifyOfJobFailure(j.job, j.currentStat)
 			if err != nil {
@@ -314,6 +314,10 @@ func (j *JobRunner) responseTimeout() time.Duration {
 func (j *JobRunner) setHeaders(req *http.Request) {
 	if j.job.RemoteProperties.Headers == nil {
 		j.job.RemoteProperties.Headers = http.Header{}
+	}
+	if j.currentStat != nil {
+		j.job.RemoteProperties.Headers.Set("NextKala-JobId", j.job.Id)
+		j.job.RemoteProperties.Headers.Set("NextKala-RunId", j.currentStat.Id)
 	}
 	// A valid assumption is that the user is sending something in json cause we're past 2017
 	if j.job.RemoteProperties.Headers["Content-Type"] == nil {
