@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +11,8 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/nextiva/nextkala/api/middleware"
 	"github.com/nextiva/nextkala/job"
@@ -139,6 +143,20 @@ func HandleAddJob(cache job.JobCache, defaultOwner string, disableLocalJobs bool
 
 		if defaultOwner != "" && newJob.Owner == "" {
 			newJob.Owner = defaultOwner
+		}
+
+		token := ""
+
+		isValid, err := validateJob(newJob, token)
+		if err != nil {
+			log.Errorf("Unable to validate job %s due to %v", newJob.Name, err)
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if !isValid {
+			log.Errorf("Validation failed for job %s", newJob.Name)
+			w.WriteHeader(http.StatusForbidden)
+			return
 		}
 
 		err = newJob.Init(cache)
@@ -474,6 +492,63 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 			w.Header().Set(contentType, jsonContentType)
 			w.WriteHeader(http.StatusNoContent)
 		}
+	}
+}
+
+// validateJob sends an http request to the remote job, and returns the result of that check.
+func validateJob(j *job.Job, token string) (bool, error) {
+	// Calculate a response timeout
+	timeout := j.ResponseTimeout()
+
+	ctx := context.Background()
+	if timeout > 0 {
+		var cncl func()
+		ctx, cncl = context.WithTimeout(ctx, timeout)
+		defer cncl()
+	}
+	// Get the actual url and body we're going to be using,
+	// including any necessary templating.
+	url, err := j.TryTemplatize(j.RemoteProperties.Url)
+	url += "/validate"
+	if err != nil {
+		return false, err
+	}
+	body, err := j.TryTemplatize(j.RemoteProperties.Body)
+	if err != nil {
+		return false, err
+	}
+
+	// Normalize the method passed by the user
+	method := strings.ToUpper(http.MethodPost)
+	bodyBuffer := bytes.NewBufferString(body)
+	req, err := http.NewRequest(method, url, bodyBuffer)
+	if err != nil {
+		return false, err
+	}
+
+	// Set default or user's passed headers
+	j.SetHeaders(req, token)
+
+	// Do the request
+	res, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return false, err
+	}
+
+	if res.StatusCode == http.StatusOK {
+		result, err := strconv.ParseBool(string(b))
+		if err != nil {
+			log.Errorf("validate for job %s did not return a boolean value", j.Name)
+			return false, err
+		}
+		return result, nil
+	} else {
+		return false, errors.New(res.Status)
 	}
 }
 
