@@ -594,7 +594,7 @@ func (j *Job) SetHeaders(req *http.Request, token string) {
 		j.RemoteProperties.Headers = http.Header{}
 	}
 	if token != "" {
-		j.RemoteProperties.Headers.Set("Authorization", "Bearer " + token)
+		j.RemoteProperties.Headers.Set("Authorization", "Bearer "+token)
 	}
 	// A valid assumption is that the user is sending something in json cause we're past 2017
 	if j.RemoteProperties.Headers["Content-Type"] == nil {

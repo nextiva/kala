@@ -11,13 +11,11 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"runtime"
-	"strconv"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/nextiva/nextkala/api/middleware"
 	"github.com/nextiva/nextkala/job"
-
-	"github.com/gorilla/mux"
 	"github.com/phyber/negroni-gzip/gzip"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/negroni"
@@ -37,6 +35,7 @@ const (
 	httpGet    = "GET"
 	httpPost   = "POST"
 	httpPut    = "PUT"
+	bearer     = "BEARER"
 )
 
 type KalaStatsResponse struct {
@@ -47,6 +46,11 @@ type KalaStatsResponse struct {
 // /api/v1/stats
 func HandleKalaStatsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		resp := &KalaStatsResponse{
 			Stats: job.NewKalaStats(cache),
 		}
@@ -68,6 +72,11 @@ type ListJobsResponse struct {
 // active or disabled.
 func HandleListJobsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		allJobs := cache.GetAll()
 		allJobs.Lock.RLock()
 		defer allJobs.Lock.RUnlock()
@@ -130,6 +139,11 @@ func unmarshalJobStatus(r *http.Request) (*job.JobStatus, error) {
 func HandleAddJob(cache job.JobCache, defaultOwner string, disableLocalJobs bool) func(http.ResponseWriter,
 	*http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, token := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		newJob, err := unmarshalNewJob(r)
 		if err != nil {
 			errorEncodeJSON(err, http.StatusBadRequest, w)
@@ -145,18 +159,18 @@ func HandleAddJob(cache job.JobCache, defaultOwner string, disableLocalJobs bool
 			newJob.Owner = defaultOwner
 		}
 
-		token := ""
-
-		isValid, err := validateJob(newJob, token)
-		if err != nil {
-			log.Errorf("Unable to validate job %s due to %v", newJob.Name, err)
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		if !isValid {
-			log.Errorf("Validation failed for job %s", newJob.Name)
-			w.WriteHeader(http.StatusForbidden)
-			return
+		if newJob.JobType == job.RemoteJob {
+			isValid, err := validateJob(newJob, token)
+			if err != nil {
+				log.Errorf("Unable to validate job %s due to %v", newJob.Name, err)
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			if !isValid {
+				log.Errorf("Validation failed for job %s", newJob.Name)
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
 		}
 
 		err = newJob.Init(cache)
@@ -185,6 +199,11 @@ func HandleAddJob(cache job.JobCache, defaultOwner string, disableLocalJobs bool
 // or updates the job if its a PUT request.
 func HandleJobRequest(cache job.JobCache, disableLocalJobs bool) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		id := mux.Vars(r)["id"]
 
 		j, err := cache.Get(id)
@@ -240,6 +259,11 @@ func HandleJobRequest(cache job.JobCache, disableLocalJobs bool) func(w http.Res
 // or updates the job if its a PUT request.
 func HandleJobParamsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		id := mux.Vars(r)["id"]
 
 		j, err := cache.Get(id)
@@ -291,6 +315,11 @@ func HandleJobParamsRequest(cache job.JobCache) func(w http.ResponseWriter, r *h
 // DELETE /api/v1/job/all
 func HandleDeleteAllJobs(cache job.JobCache, disableDeleteAll bool) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		if disableDeleteAll {
 			w.WriteHeader(http.StatusForbidden)
 			return
@@ -325,6 +354,11 @@ func handleGetJob(w http.ResponseWriter, _ *http.Request, j *job.Job) {
 // /api/v1/job/start/{id}
 func HandleStartJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		id := mux.Vars(r)["id"]
 		j, err := cache.Get(id)
 		if err != nil {
@@ -348,6 +382,11 @@ func HandleStartJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *ht
 // /api/v1/job/disable/{id}
 func HandleDisableJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		id := mux.Vars(r)["id"]
 		j, err := cache.Get(id)
 		if err != nil {
@@ -373,6 +412,11 @@ func HandleDisableJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *
 // /api/v1/job/enable/{id}
 func HandleEnableJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		id := mux.Vars(r)["id"]
 		j, err := cache.Get(id)
 		if err != nil {
@@ -402,6 +446,11 @@ type ListJobStatsResponse struct {
 // /api/v1/job/{id}/executions
 func HandleListJobRunsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		id := mux.Vars(r)["id"]
 
 		_, err := cache.Get(id)
@@ -440,6 +489,11 @@ type JobRunResponse struct {
 // /api/v1/job/{job_id}/executions/{run_id}/
 func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, _ := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		runID := mux.Vars(r)["id"]
 
 		switch r.Method {
@@ -509,9 +563,13 @@ func validateJob(j *job.Job, token string) (bool, error) {
 	// Get the actual url and body we're going to be using,
 	// including any necessary templating.
 	url, err := j.TryTemplatize(j.RemoteProperties.Url)
-	url += "/validate"
 	if err != nil {
 		return false, err
+	}
+	if strings.HasSuffix(url, "/") {
+		url += "validate"
+	} else {
+		url += "/validate"
 	}
 	body, err := j.TryTemplatize(j.RemoteProperties.Body)
 	if err != nil {
@@ -534,14 +592,11 @@ func validateJob(j *job.Job, token string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer res.Body.Close()
-	b, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return false, err
-	}
 
+	defer res.Body.Close()
 	if res.StatusCode == http.StatusOK {
-		result, err := strconv.ParseBool(string(b))
+		var result bool
+		err := json.NewDecoder(res.Body).Decode(&result)
 		if err != nil {
 			log.Errorf("validate for job %s did not return a boolean value", j.Name)
 			return false, err
@@ -591,6 +646,34 @@ func SetupApiRoutes(r *mux.Router, cache job.JobCache, defaultOwner string, disa
 	r.HandleFunc(ApiJobPath+"{job_id}/executions/{id}/", HandleJobRunRequest(cache)).Methods(httpGet, httpPut)
 	// Route for a single job execution actions
 	r.HandleFunc(ApiJobPath+"{id}/executions/", HandleListJobRunsRequest(cache)).Methods(httpGet)
+}
+
+func verifyToken(r *http.Request) (isValid bool, token string) {
+	if job.Verifier == nil {
+		return true, ""
+	}
+	authHeader := r.Header.Get("Authorization")
+
+	if authHeader == "" {
+		log.Warn("Auth header is missing")
+		return false, ""
+	}
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) == 2 && strings.EqualFold(tokenParts[0], bearer) {
+		bearerToken := tokenParts[1]
+
+		_, err := job.Verifier.VerifyAccessToken(bearerToken)
+
+		if err != nil {
+			log.Infof("Invalid access token: %v", err)
+			return false, ""
+		}
+
+		return true, bearerToken
+	} else {
+		log.Warn("Auth header is not a bearer token")
+		return false, ""
+	}
 }
 
 func MakeServer(listenAddr string, cache job.JobCache, defaultOwner string, profile bool, disableDeleteAll bool,

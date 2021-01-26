@@ -5,12 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mattn/go-shellwords"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"os/exec"
 	"strings"
+
+	"github.com/mattn/go-shellwords"
+	log "github.com/sirupsen/logrus"
 )
 
 type JobRunner struct {
@@ -160,7 +161,22 @@ func (j *JobRunner) RemoteRun() (string, error) {
 		return "", err
 	}
 
-	token := ""
+	token, err := GetJobToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	if Oauth2Config != nil && username != "" && password != "" {
+		authToken, err := Oauth2Config.PasswordCredentialsToken(ctx, username, password)
+		if err != nil {
+			log.Errorf("Unable to obtain token for user %s: %v", username, err)
+			return "", err
+		}
+		if authToken.AccessToken == "" {
+			log.Errorf("Access token not returned for usr %s", username)
+			return "", errors.New("Unable to obtain access token for user" + username)
+		}
+		token = authToken.AccessToken
+	}
 
 	// Set default or user's passed headers
 	j.setHeaders(req, token)

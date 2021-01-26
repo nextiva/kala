@@ -99,10 +99,13 @@ func (c *MemoryJobCache) Get(id string) (*Job, error) {
 	defer c.jobs.Lock.RUnlock()
 
 	j := c.jobs.Jobs[id]
-	if j == nil {
+	if j != nil {
+		return j, nil
+	}
+	j, err := c.jobDB.Get(id)
+	if err != nil {
 		return nil, ErrJobDoesntExist
 	}
-
 	return j, nil
 }
 
@@ -271,7 +274,11 @@ func (c *LockFreeJobCache) Start(jobstatTtl time.Duration) {
 func (c *LockFreeJobCache) Get(id string) (*Job, error) {
 	val, exists := c.jobs.GetStringKey(id)
 	if val == nil || !exists {
-		return nil, ErrJobDoesntExist
+		j, err := c.jobDB.Get(id)
+		if err != nil {
+			return nil, ErrJobDoesntExist
+		}
+		return j, nil
 	}
 	j := val.(*Job)
 	if j == nil {

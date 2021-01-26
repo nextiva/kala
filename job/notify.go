@@ -20,21 +20,20 @@ type Mailer struct {
 
 var mailer Mailer
 
-func InitMailer() error {
+func init() {
 	host := viper.GetString("mailer.host")
 	port := viper.GetInt("mailer.port")
-	userName := viper.GetString("mailer.userName")
-	password := viper.GetString("mailer.password")
+	mailUsername := viper.GetString("mailer.userName")
+	mailPassword := viper.GetString("mailer.password")
 	fromAddress := viper.GetString("mailer.fromAddress")
 	skipVerify := viper.GetBool("mailer.skipVerify")
 	mailer = Mailer{host: host,
 		port:        port,
-		userName:    userName,
-		password:    password,
+		userName:    mailUsername,
+		password:    mailPassword,
 		fromAddress: fromAddress,
 		skipVerify:  skipVerify,
 	}
-	return nil
 }
 
 func Notify(toAddress string, subject string, message string) error {

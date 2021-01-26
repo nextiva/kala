@@ -42,10 +42,6 @@ var serveCmd = &cobra.Command{
 		} else {
 			connectionString = parsedPort
 		}
-		err := job.InitMailer()
-		if err != nil {
-			log.Errorf("Unable to initialze Mailer due to: %s", err)
-		}
 		var db job.JobDB
 
 		switch viper.GetString("jobdb") {
@@ -58,13 +54,14 @@ var serveCmd = &cobra.Command{
 			log.Fatalf("Unknown Job DB implementation '%s'", viper.GetString("jobdb"))
 		}
 
+		job.InitAuth()
+
 		// Create cache
 		log.Infof("Preparing cache")
 		cache := job.NewLockFreeJobCache(db)
 
 		// Startup cache
 		cache.Start(time.Duration(viper.GetInt("jobstat-ttl")) * time.Minute)
-
 		// Launch API server
 		log.Infof("Starting server on port %s", connectionString)
 		srv := api.MakeServer(
