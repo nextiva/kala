@@ -226,11 +226,9 @@ func (m *MemoryDB) SaveRun(run *JobStat) error {
 
 func (m *MemoryDB) UpdateRun(jobStat *JobStat) error {
 	runs := m.runs[jobStat.JobId]
-	if runs != nil {
-		for i, run := range runs {
-			if run.Id == jobStat.Id {
-				runs[i] = jobStat
-			}
+	for i, run := range runs {
+		if run.Id == jobStat.Id {
+			runs[i] = jobStat
 		}
 	}
 	return m.SaveRun(jobStat)
