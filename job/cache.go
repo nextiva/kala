@@ -103,7 +103,7 @@ func (c *MemoryJobCache) Get(id string) (*Job, error) {
 		return j, nil
 	}
 	j, err := c.jobDB.Get(id)
-	if err != nil {
+	if err != nil || j == nil {
 		return nil, ErrJobDoesntExist
 	}
 	return j, nil
@@ -275,7 +275,7 @@ func (c *LockFreeJobCache) Get(id string) (*Job, error) {
 	val, exists := c.jobs.GetStringKey(id)
 	if val == nil || !exists {
 		j, err := c.jobDB.Get(id)
-		if err != nil {
+		if err != nil || j == nil {
 			return nil, ErrJobDoesntExist
 		}
 		return j, nil
