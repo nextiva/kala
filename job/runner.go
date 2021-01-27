@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
-	"text/template"
-	"time"
 
 	"github.com/mattn/go-shellwords"
 	log "github.com/sirupsen/logrus"
@@ -136,7 +134,7 @@ func (j *JobRunner) LocalRun() (string, error) {
 // RemoteRun sends a http request, and checks if the response is valid in time,
 func (j *JobRunner) RemoteRun() (string, error) {
 	// Calculate a response timeout
-	timeout := j.responseTimeout()
+	timeout := j.job.ResponseTimeout()
 
 	ctx := context.Background()
 	if timeout > 0 {
@@ -146,11 +144,11 @@ func (j *JobRunner) RemoteRun() (string, error) {
 	}
 	// Get the actual url and body we're going to be using,
 	// including any necessary templating.
-	url, err := j.tryTemplatize(j.job.RemoteProperties.Url)
+	url, err := j.job.TryTemplatize(j.job.RemoteProperties.Url)
 	if err != nil {
 		return "", fmt.Errorf("Error templatizing url: %v", err)
 	}
-	body, err := j.tryTemplatize(j.job.RemoteProperties.Body)
+	body, err := j.job.TryTemplatize(j.job.RemoteProperties.Body)
 	if err != nil {
 		return "", fmt.Errorf("Error templatizing body: %v", err)
 	}
@@ -163,8 +161,25 @@ func (j *JobRunner) RemoteRun() (string, error) {
 		return "", err
 	}
 
+	token, err := GetJobToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	if Oauth2Config != nil && username != "" && password != "" {
+		authToken, err := Oauth2Config.PasswordCredentialsToken(ctx, username, password)
+		if err != nil {
+			log.Errorf("Unable to obtain token for user %s: %v", username, err)
+			return "", err
+		}
+		if authToken.AccessToken == "" {
+			log.Errorf("Access token not returned for usr %s", username)
+			return "", errors.New("Unable to obtain access token for user" + username)
+		}
+		token = authToken.AccessToken
+	}
+
 	// Set default or user's passed headers
-	j.setHeaders(req)
+	j.setHeaders(req, token)
 
 	// Do the request
 	res, err := http.DefaultClient.Do(req.WithContext(ctx))
@@ -197,7 +212,7 @@ func (j *JobRunner) runCmd() (string, error) {
 
 	// Get the actual command we're going to be running,
 	// including any necessary templating.
-	cmdText, err := j.tryTemplatize(j.job.Command)
+	cmdText, err := j.job.TryTemplatize(j.job.Command)
 	if err != nil {
 		return "", fmt.Errorf("Error templatizing command: %v", err)
 	}
@@ -218,36 +233,6 @@ func (j *JobRunner) runCmd() (string, error) {
 		return "", fmt.Errorf("%s: %s", err, strings.TrimSpace(string(out)))
 	}
 	return strings.TrimSpace(string(out)), nil
-}
-
-func (j *JobRunner) tryTemplatize(content string) (string, error) {
-	delims := j.job.TemplateDelimiters
-
-	if delims == "" {
-		return content, nil
-	}
-
-	split := strings.Split(delims, " ")
-	if len(split) != 2 { //nolint:gomnd
-		return "", ErrInvalidDelimiters
-	}
-
-	left, right := split[0], split[1]
-	if left == "" || right == "" {
-		return "", ErrInvalidDelimiters
-	}
-
-	t, err := template.New("tmpl").Delims(left, right).Parse(content)
-	if err != nil {
-		return "", fmt.Errorf("Error parsing template: %v", err)
-	}
-
-	b := bytes.NewBuffer(nil)
-	if err := t.Execute(b, j.job); err != nil {
-		return "", fmt.Errorf("Error executing template: %v", err)
-	}
-
-	return b.String(), nil
 }
 
 func (j *JobRunner) shouldRetry() bool {
@@ -299,29 +284,11 @@ func (j *JobRunner) checkExpected(statusCode int) bool {
 	return false
 }
 
-// responseTimeout sets a default timeout if none specified
-func (j *JobRunner) responseTimeout() time.Duration {
-	responseTimeout := j.job.RemoteProperties.Timeout
-	if responseTimeout == 0 {
-
-		// set default to 30 seconds
-		responseTimeout = 30
-	}
-	return time.Duration(responseTimeout) * time.Second
-}
-
 // setHeaders sets default and user specific headers to the http request
-func (j *JobRunner) setHeaders(req *http.Request) {
-	if j.job.RemoteProperties.Headers == nil {
-		j.job.RemoteProperties.Headers = http.Header{}
-	}
+func (j *JobRunner) setHeaders(req *http.Request, token string) {
+	j.job.SetHeaders(req, token)
 	if j.currentStat != nil {
 		j.job.RemoteProperties.Headers.Set("NextKala-JobId", j.job.Id)
 		j.job.RemoteProperties.Headers.Set("NextKala-RunId", j.currentStat.Id)
 	}
-	// A valid assumption is that the user is sending something in json cause we're past 2017
-	if j.job.RemoteProperties.Headers["Content-Type"] == nil {
-		j.job.RemoteProperties.Headers["Content-Type"] = []string{"application/json"}
-	}
-	req.Header = j.job.RemoteProperties.Headers
 }

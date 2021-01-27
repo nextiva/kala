@@ -171,14 +171,14 @@ var _ JobDB = (*MemoryDB)(nil)
 
 type MemoryDB struct {
 	m    map[string]*Job
-	runs map[string]*JobStat
+	runs map[string][]*JobStat
 	lock sync.RWMutex
 }
 
 func NewMemoryDB() *MemoryDB {
 	return &MemoryDB{
 		m:    map[string]*Job{},
-		runs: map[string]*JobStat{},
+		runs: map[string][]*JobStat{},
 	}
 }
 
@@ -220,27 +220,40 @@ func (m *MemoryDB) Save(j *Job) error {
 }
 
 func (m *MemoryDB) SaveRun(run *JobStat) error {
-	m.runs[run.Id] = run
+	m.runs[run.JobId] = append(m.runs[run.JobId], run)
 	return nil
 }
 
 func (m *MemoryDB) UpdateRun(jobStat *JobStat) error {
-	m.runs[jobStat.Id] = jobStat
-	return nil
-}
-
-func (m *MemoryDB) GetAllRuns(jobID string) ([]*JobStat, error) {
-	stats := make([]*JobStat, 0)
-	for _, value := range m.runs {
-		if value.JobId == jobID {
-			stats = append(stats, value)
+	runs := m.runs[jobStat.JobId]
+	for i, run := range runs {
+		if run.Id == jobStat.Id {
+			runs[i] = jobStat
 		}
 	}
-	return stats, nil
+	return m.SaveRun(jobStat)
 }
 
-func (m *MemoryDB) GetRun(runID string) (*JobStat, error) {
-	return m.runs[runID], nil
+func (m *MemoryDB) GetAllRuns(jobID string) (ret []*JobStat, _ error) {
+	for ID, runs := range m.runs {
+		for _, run := range runs {
+			if ID == jobID {
+				ret = append(ret, run)
+			}
+		}
+	}
+	return
+}
+
+func (m *MemoryDB) GetRun(runID string) (ret *JobStat, _ error) {
+	for _, runs := range m.runs {
+		for _, run := range runs {
+			if run.Id == runID {
+				return run, nil
+			}
+		}
+	}
+	return
 }
 
 func (m *MemoryDB) DeleteRun(id string) error {

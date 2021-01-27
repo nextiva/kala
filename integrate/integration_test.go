@@ -1,6 +1,7 @@
 package integrate
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -8,6 +9,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/mixer/clock"
 	"github.com/nextiva/nextkala/api"
@@ -32,6 +35,14 @@ func TestIntegrationTest(t *testing.T) {
 
 	hit := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.RequestURI == "/validate" {
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(true); err != nil {
+				log.Errorf("Error occurred when marshaling response: %s", err)
+				return
+			}
+			return
+		}
 		hit <- struct{}{}
 		w.WriteHeader(200)
 	}))

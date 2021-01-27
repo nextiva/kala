@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/mixer/clock"
@@ -554,6 +555,63 @@ func (j *Job) ShouldStartWaiting() bool {
 		return false
 	}
 	return true
+}
+
+// TryTemplatize returns a string based on a template using data defined in the Job definition.
+func (j *Job) TryTemplatize(content string) (string, error) {
+	delims := j.TemplateDelimiters
+
+	if delims == "" {
+		return content, nil
+	}
+
+	split := strings.Split(delims, " ")
+	if len(split) != 2 { //nolint:gomnd
+		return "", ErrInvalidDelimiters
+	}
+
+	left, right := split[0], split[1]
+	if left == "" || right == "" {
+		return "", ErrInvalidDelimiters
+	}
+
+	t, err := template.New("tmpl").Delims(left, right).Parse(content)
+	if err != nil {
+		return "", fmt.Errorf("Error parsing template: %v", err)
+	}
+
+	b := bytes.NewBuffer(nil)
+	if err := t.Execute(b, j); err != nil {
+		return "", fmt.Errorf("Error executing template: %v", err)
+	}
+
+	return b.String(), nil
+}
+
+// SetHeaders sets default and user specific headers to the http request
+func (j *Job) SetHeaders(req *http.Request, token string) {
+	if j.RemoteProperties.Headers == nil {
+		j.RemoteProperties.Headers = http.Header{}
+	}
+	if token != "" {
+		j.RemoteProperties.Headers.Set("Authorization", "Bearer "+token)
+	}
+	// A valid assumption is that the user is sending something in json cause we're past 2017
+	if j.RemoteProperties.Headers["Content-Type"] == nil {
+		j.RemoteProperties.Headers["Content-Type"] = []string{"application/json"}
+	}
+	req.Header = j.RemoteProperties.Headers
+}
+
+// ResponseTimeout sets a default timeout if none specified
+func (j *Job) ResponseTimeout() time.Duration {
+	responseTimeout := j.RemoteProperties.Timeout
+	if responseTimeout == 0 {
+
+		// set default to 30 seconds
+		responseTimeout = 30
+	}
+	return time.Duration(responseTimeout) * time.Second
 }
 
 func (j *Job) validation() error {

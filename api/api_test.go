@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nextiva/nextkala/job"
-
 	"testing"
+
+	"github.com/nextiva/nextkala/job"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -41,6 +42,17 @@ func generateNewRemoteJobMap() map[string]interface{} {
 		"type":  1,
 		"remote_properties": map[string]string{
 			"url": "http://example.com",
+		},
+	}
+}
+
+func generateNewRemoteJobMapWithUrl(url string) map[string]interface{} {
+	return map[string]interface{}{
+		"name":  "mock_remote_job",
+		"owner": "example@example.com",
+		"type":  1,
+		"remote_properties": map[string]string{
+			"url": url,
 		},
 	}
 }
@@ -116,14 +128,28 @@ func (a *ApiTestSuite) TestHandleAddDisabledLocalJob() {
 func (a *ApiTestSuite) TestHandleAddRemoteJob() {
 	t := a.T()
 	cache := job.NewMockCache()
-	jobMap := generateNewRemoteJobMap()
-	jobMap["owner"] = ""
 	defaultOwner := "aj+tester@ajvb.me"
 	handler := HandleAddJob(cache, defaultOwner, false)
 
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.RequestURI == "/api/v1/job/validate" {
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(true); err != nil {
+				log.Errorf("Error occurred when marshaling response: %s", err)
+				return
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+
+	url := "http://" + srv.Listener.Addr().String() + ApiJobPath
+	jobMap := generateNewRemoteJobMapWithUrl(url)
+	jobMap["owner"] = ""
+
 	jsonJobMap, err := json.Marshal(jobMap)
 	a.NoError(err)
-	w, req := setupTestReq(t, "POST", ApiJobPath, jsonJobMap)
+	w, req := setupTestReq(t, "POST", url, jsonJobMap)
 	handler(w, req)
 
 	var addJobResp AddJobResponse
