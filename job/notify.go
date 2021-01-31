@@ -18,16 +18,24 @@ type Mailer struct {
 	skipVerify  bool
 }
 
-var mailer Mailer
+var mailer *Mailer
 
-func init() {
+func InitMailer() {
+	viper.SetDefault("mailer.skipVerify", false)
 	host := viper.GetString("mailer.host")
 	port := viper.GetInt("mailer.port")
-	mailUsername := viper.GetString("mailer.userName")
+	mailUsername := viper.GetString("mailer.username")
 	mailPassword := viper.GetString("mailer.password")
 	fromAddress := viper.GetString("mailer.fromAddress")
 	skipVerify := viper.GetBool("mailer.skipVerify")
-	mailer = Mailer{host: host,
+	if host == "" || port == 0 {
+		return
+	}
+	if fromAddress == "" {
+		log.Warnf("No mailer fromAddress configured. Cannot send mail")
+		return
+	}
+	mailer = &Mailer{host: host,
 		port:        port,
 		userName:    mailUsername,
 		password:    mailPassword,
@@ -37,20 +45,24 @@ func init() {
 }
 
 func Notify(toAddress string, subject string, message string) error {
-	msg := mail.NewMessage()
-	msg.SetHeader("From", mailer.fromAddress)
-	msg.SetHeader("To", toAddress)
-	msg.SetHeader("Subject", subject)
-	msg.SetBody("text/plain", message)
-	dialer := mail.NewDialer(mailer.host, mailer.port, mailer.userName, mailer.password)
-	if !mailer.skipVerify {
-		dialer.StartTLSPolicy = mail.MandatoryStartTLS
+	if mailer != nil {
+		msg := mail.NewMessage()
+		msg.SetHeader("From", mailer.fromAddress)
+		msg.SetHeader("To", toAddress)
+		msg.SetHeader("Subject", subject)
+		msg.SetBody("text/plain", message)
+
+		dialer := mail.NewDialer(mailer.host, mailer.port, mailer.userName, mailer.password)
+		if !mailer.skipVerify {
+			dialer.StartTLSPolicy = mail.MandatoryStartTLS
+		}
+		err := dialer.DialAndSend(msg)
+		if err != nil {
+			log.Errorf("Unable to send email due to %s", err)
+		}
+		return err
 	}
-	err := dialer.DialAndSend(msg)
-	if err != nil {
-		log.Errorf("Unable to send email due to %s", err)
-	}
-	return err
+	return nil
 }
 
 func NotifyOfJobFailure(j *Job, run *JobStat) error {

@@ -18,6 +18,7 @@ import (
 	"github.com/nextiva/nextkala/job"
 	"github.com/phyber/negroni-gzip/gzip"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"github.com/urfave/negroni"
 )
 
@@ -35,7 +36,6 @@ const (
 	httpGet    = "GET"
 	httpPost   = "POST"
 	httpPut    = "PUT"
-	bearer     = "BEARER"
 )
 
 type KalaStatsResponse struct {
@@ -46,11 +46,6 @@ type KalaStatsResponse struct {
 // /api/v1/stats
 func HandleKalaStatsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		resp := &KalaStatsResponse{
 			Stats: job.NewKalaStats(cache),
 		}
@@ -72,11 +67,6 @@ type ListJobsResponse struct {
 // active or disabled.
 func HandleListJobsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		allJobs := cache.GetAll()
 		allJobs.Lock.RLock()
 		defer allJobs.Lock.RUnlock()
@@ -139,11 +129,6 @@ func unmarshalJobStatus(r *http.Request) (*job.JobStatus, error) {
 func HandleAddJob(cache job.JobCache, defaultOwner string, disableLocalJobs bool) func(http.ResponseWriter,
 	*http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, token := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		newJob, err := unmarshalNewJob(r)
 		if err != nil {
 			errorEncodeJSON(err, http.StatusBadRequest, w)
@@ -160,7 +145,7 @@ func HandleAddJob(cache job.JobCache, defaultOwner string, disableLocalJobs bool
 		}
 
 		if newJob.JobType == job.RemoteJob {
-			isValid, err := validateJob(newJob, token)
+			isValid, err := validateJob(r, newJob)
 			if err != nil {
 				log.Errorf("Unable to validate job %s due to %v", newJob.Name, err)
 				w.WriteHeader(http.StatusForbidden)
@@ -199,11 +184,6 @@ func HandleAddJob(cache job.JobCache, defaultOwner string, disableLocalJobs bool
 // or updates the job if its a PUT request.
 func HandleJobRequest(cache job.JobCache, disableLocalJobs bool) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		id := mux.Vars(r)["id"]
 
 		j, err := cache.Get(id)
@@ -259,11 +239,6 @@ func HandleJobRequest(cache job.JobCache, disableLocalJobs bool) func(w http.Res
 // or updates the job if its a PUT request.
 func HandleJobParamsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		id := mux.Vars(r)["id"]
 
 		j, err := cache.Get(id)
@@ -315,11 +290,6 @@ func HandleJobParamsRequest(cache job.JobCache) func(w http.ResponseWriter, r *h
 // DELETE /api/v1/job/all
 func HandleDeleteAllJobs(cache job.JobCache, disableDeleteAll bool) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		if disableDeleteAll {
 			w.WriteHeader(http.StatusForbidden)
 			return
@@ -354,11 +324,6 @@ func handleGetJob(w http.ResponseWriter, _ *http.Request, j *job.Job) {
 // /api/v1/job/start/{id}
 func HandleStartJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		id := mux.Vars(r)["id"]
 		j, err := cache.Get(id)
 		if err != nil {
@@ -382,11 +347,6 @@ func HandleStartJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *ht
 // /api/v1/job/disable/{id}
 func HandleDisableJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		id := mux.Vars(r)["id"]
 		j, err := cache.Get(id)
 		if err != nil {
@@ -412,11 +372,6 @@ func HandleDisableJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *
 // /api/v1/job/enable/{id}
 func HandleEnableJobRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		id := mux.Vars(r)["id"]
 		j, err := cache.Get(id)
 		if err != nil {
@@ -446,11 +401,6 @@ type ListJobStatsResponse struct {
 // /api/v1/job/{id}/executions
 func HandleListJobRunsRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		id := mux.Vars(r)["id"]
 
 		_, err := cache.Get(id)
@@ -489,11 +439,6 @@ type JobRunResponse struct {
 // /api/v1/job/{job_id}/executions/{run_id}/
 func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		isAuthenticated, _ := verifyToken(r)
-		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
 		runID := mux.Vars(r)["id"]
 
 		switch r.Method {
@@ -550,11 +495,16 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 }
 
 // validateJob sends an http request to the remote job, and returns the result of that check.
-func validateJob(j *job.Job, token string) (bool, error) {
+func validateJob(r *http.Request, j *job.Job) (bool, error) {
+	ctx := r.Context()
+	token := ""
+	if ctx.Value(job.AccessTokenKey) != nil {
+		token = ctx.Value(job.AccessTokenKey).(string)
+	}
 	// Calculate a response timeout
 	timeout := j.ResponseTimeout()
 
-	ctx := context.Background()
+	ctx = context.Background()
 	if timeout > 0 {
 		var cncl func()
 		ctx, cncl = context.WithTimeout(ctx, timeout)
@@ -586,6 +536,14 @@ func validateJob(j *job.Job, token string) (bool, error) {
 
 	// Set default or user's passed headers
 	j.SetHeaders(req, token)
+
+	headers := viper.GetStringSlice("remote.headers")
+	for _, header := range headers {
+		value := r.Header.Get(header)
+		if value != "" {
+			req.Header.Set(header, value)
+		}
+	}
 
 	// Do the request
 	res, err := http.DefaultClient.Do(req.WithContext(ctx))
@@ -646,34 +604,7 @@ func SetupApiRoutes(r *mux.Router, cache job.JobCache, defaultOwner string, disa
 	r.HandleFunc(ApiJobPath+"{job_id}/executions/{id}/", HandleJobRunRequest(cache)).Methods(httpGet, httpPut)
 	// Route for a single job execution actions
 	r.HandleFunc(ApiJobPath+"{id}/executions/", HandleListJobRunsRequest(cache)).Methods(httpGet)
-}
-
-func verifyToken(r *http.Request) (isValid bool, token string) {
-	if job.Verifier == nil {
-		return true, ""
-	}
-	authHeader := r.Header.Get("Authorization")
-
-	if authHeader == "" {
-		log.Warn("Auth header is missing")
-		return false, ""
-	}
-	tokenParts := strings.Split(authHeader, " ")
-	if len(tokenParts) == 2 && strings.EqualFold(tokenParts[0], bearer) {
-		bearerToken := tokenParts[1]
-
-		_, err := job.Verifier.VerifyAccessToken(bearerToken)
-
-		if err != nil {
-			log.Infof("Invalid access token: %v", err)
-			return false, ""
-		}
-
-		return true, bearerToken
-	} else {
-		log.Warn("Auth header is not a bearer token")
-		return false, ""
-	}
+	r.Use(job.AuthHandler)
 }
 
 func MakeServer(listenAddr string, cache job.JobCache, defaultOwner string, profile bool, disableDeleteAll bool,

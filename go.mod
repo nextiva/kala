@@ -6,8 +6,8 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.3.0
 	github.com/boltdb/bolt v1.3.1-0.20170131192018-e9cf4fae01b5
 	github.com/cornelk/hashmap v1.0.1
-	github.com/gorilla/context v0.0.0-20141217160251-215affda49ad // indirect
-	github.com/gorilla/mux v0.0.0-20150808061613-ffb3f683aad4
+	github.com/gorilla/handlers v1.5.1
+	github.com/gorilla/mux v1.8.0
 	github.com/lib/pq v1.0.0
 	github.com/mattn/go-shellwords v1.0.0
 	github.com/mitchellh/go-homedir v1.1.0

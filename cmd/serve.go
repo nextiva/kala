@@ -55,6 +55,7 @@ var serveCmd = &cobra.Command{
 		}
 
 		job.InitAuth()
+		job.InitMailer()
 
 		// Create cache
 		log.Infof("Preparing cache")
