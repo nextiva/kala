@@ -73,9 +73,9 @@ func (j *JobRunner) Run(cache JobCache) (*JobStat, Metadata, error) {
 			log.Errorf("Error running job %s with execution id %s: %v", j.currentStat.JobId, j.currentStat.Id,
 				err)
 
-			err = NotifyOfJobFailure(j.job, j.currentStat)
-			if err != nil {
-				log.Errorln("Error notifying of job failure:", err)
+			mailErr := NotifyOfJobFailure(j.job, j.currentStat)
+			if mailErr != nil {
+				log.Errorln("Error notifying of job failure:", mailErr)
 			}
 
 			j.meta.ErrorCount++

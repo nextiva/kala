@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 
 	jwtverifier "github.com/okta/okta-jwt-verifier-golang"
 	log "github.com/sirupsen/logrus"
@@ -11,12 +13,18 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type contextKey string
+
+const (
+	AccessTokenKey = contextKey("Access Token Key")
+)
+
 var (
 	username = ""
 	password = ""
 
 	Oauth2Config *oauth2.Config           = nil
-	Verifier     *jwtverifier.JwtVerifier = nil
+	verifier     *jwtverifier.JwtVerifier = nil
 )
 
 func SetupAuth(issuer string, audience string, clientId string, clientSecret string, userName string, pwd string,
@@ -62,7 +70,7 @@ func InitAuth() {
 		ClaimsToValidate: toValidate,
 	}
 
-	Verifier = jwtVerifierSetup.New()
+	verifier = jwtVerifierSetup.New()
 }
 
 func GetJobToken(ctx context.Context) (string, error) {
@@ -78,4 +86,45 @@ func GetJobToken(ctx context.Context) (string, error) {
 		return authToken.AccessToken, nil
 	}
 	return "", nil
+}
+
+func AuthHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		isAuthenticated, token := verifyToken(r)
+		if !isAuthenticated {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		ctx := context.WithValue(r.Context(), AccessTokenKey, token)
+		next.ServeHTTP(w, r.WithContext(ctx))
+
+	})
+}
+
+func verifyToken(r *http.Request) (isValid bool, token string) {
+	if verifier == nil {
+		return true, ""
+	}
+	authHeader := r.Header.Get("Authorization")
+
+	if authHeader == "" {
+		log.Warn("Auth header is missing")
+		return false, ""
+	}
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) == 2 && strings.EqualFold(tokenParts[0], "BEARER") {
+		bearerToken := tokenParts[1]
+
+		_, err := verifier.VerifyAccessToken(bearerToken)
+
+		if err != nil {
+			log.Infof("Invalid access token: %v", err)
+			return false, ""
+		}
+
+		return true, bearerToken
+	} else {
+		log.Warn("Auth header is not a bearer token")
+		return false, ""
+	}
 }
