@@ -7,7 +7,11 @@
 
   var service = {
     getJobs: function() {
-      return fetch(ApiJobEndpoint)
+      return fetch(ApiJobEndpoint, {
+        headers: {
+          'Authorization': 'Bearer ' + Auth.access_token()
+        }
+      })
         .then(function(response) {
           return response.json()
         })

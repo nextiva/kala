@@ -1,45 +1,50 @@
 Reef.debug(true);
 
-var app = new Reef('#app', {
-    store: store,
-    router: router,
-    template: function(props, route) {
-        var activeForRoutes = function() {
-            var args = Array.prototype.slice.call(arguments);
-            return args.some(function(routeID) {
-                return routeID === route.id
-            }) ? '' : 'is-hidden'
-        }
-        return html`
-      <div id="nav"></div>
-      <section class="section">
-        <div class="container">
-          <h1 class="title">
-            ${route.title} ${route.id === 'jobs' ? ' - ' + Object.keys(props.jobs).length : ''}
-            <span class="is-pulled-right ${activeForRoutes('jobs', 'metrics')}">
-              <button class="button is-rounded is-info is-outlined" onclick="actions.refresh('${route.id}')" ${props.loading && 'disabled'}>
+var App = (function() {
+    var app = new Reef('#app', {
+        store: store,
+        router: router,
+        template: function (props, route) {
+            var activeForRoutes = function () {
+                var args = Array.prototype.slice.call(arguments);
+                return args.some(function (routeID) {
+                    return routeID === route.id
+                }) ? '' : 'is-hidden'
+            }
+            return html`
+                <div id="nav"></div>
+                <section class="section">
+                    <div class="container">
+                        <h1 class="title">
+                            ${route.title} ${route.id === 'jobs' ? ' - ' + Object.keys(props.jobs).length : ''}
+                            <span class="is-pulled-right ${activeForRoutes('jobs', 'metrics')}">
+              <button class="button is-rounded is-info is-outlined" onclick="actions.refresh('${route.id}')"
+                      ${props.loading && 'disabled'}>
                 <span class="icon">
                   <i class="fas fa-sync"></i>
                 </span>
                 <span>Refresh</span>
               </button>
             </span>
-          </h1>
-          <div class="box">
-            <div class="container" style="min-height: 300px">
-              <div id="jobsTable" class="${activeForRoutes('jobs')}"></div>
-              <div id="metricsPanel" class="${activeForRoutes('metrics')}"></div>
-              <div id="createPage" class="${activeForRoutes('create')}"></div>
-              <div class="loader-wrapper ${props.loading ? 'is-active' : ''}">
-                <div class="loader is-loading"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-      <div id="jobDetailModal"></div>
-    `
-    },
+                        </h1>
+                        <div class="box">
+                            <div class="container" style="min-height: 300px">
+                                <div id="jobsTable" class="${activeForRoutes('jobs')}"></div>
+                                <div id="metricsPanel" class="${activeForRoutes('metrics')}"></div>
+                                <div id="createPage" class="${activeForRoutes('create')}"></div>
+                                <div class="loader-wrapper ${props.loading ? 'is-active' : ''}">
+                                    <div class="loader is-loading"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <div id="jobDetailModal"></div>
+            `
+        },
+    });
+
+    app.render();
 });
 
 var navbar = new Reef('#nav', {

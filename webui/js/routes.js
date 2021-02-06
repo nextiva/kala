@@ -1,5 +1,5 @@
 var router = new Reef.Router({
-  title: '{{title}} | Kala Web Interface',
+  title: '{{title}} | NextKala Web Interface',
   routes: [
     {
       id: 'jobs',

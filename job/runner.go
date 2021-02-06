@@ -57,6 +57,7 @@ func (j *JobRunner) Run(cache JobCache) (*JobStat, Metadata, error) {
 			out, err = j.LocalRun()
 		case j.job.JobType == RemoteJob:
 			j.currentStat.Status = Status.Started
+			j.currentStat.NumberOfRetries = j.job.Retries - j.currentRetries
 			err = cache.SaveRun(j.currentStat)
 			if err != nil {
 				log.Errorf("Error saving initial job status: %v", err)
@@ -271,9 +272,11 @@ func (j *JobRunner) collectStats(status JobStatus) {
 }
 
 func (j *JobRunner) checkExpected(statusCode int) bool {
-	// If no expected response codes passed, add 200 status code as expected
+	// If no expected response codes passed, accept any 2xx response code.
 	if len(j.job.RemoteProperties.ExpectedResponseCodes) == 0 {
-		j.job.RemoteProperties.ExpectedResponseCodes = append(j.job.RemoteProperties.ExpectedResponseCodes, 200)
+		if statusCode >= 200 && statusCode < 300 {
+			return true
+		}
 	}
 	for _, expected := range j.job.RemoteProperties.ExpectedResponseCodes {
 		if expected == statusCode {

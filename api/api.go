@@ -12,6 +12,7 @@ import (
 	"net/http/pprof"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/nextiva/nextkala/api/middleware"
@@ -479,8 +480,8 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			run.Status = *jobStatus
-			run.ExecutionDuration = j.Now().Sub(run.RanAt)
+
+			updateRunStatus(jobStatus, j, run, w)
 
 			err = cache.UpdateRun(run)
 			if err != nil {
@@ -491,6 +492,46 @@ func HandleJobRunRequest(cache job.JobCache) func(w http.ResponseWriter, r *http
 			w.Header().Set(contentType, jsonContentType)
 			w.WriteHeader(http.StatusNoContent)
 		}
+	}
+}
+
+func updateRunStatus(jobStatus *job.JobStatus, j *job.Job, run *job.JobStat, w http.ResponseWriter) {
+	switch run.Status {
+	case job.Status.Success:
+		log.Error("Cannot update the status of a successfully completed job execution")
+		w.WriteHeader(http.StatusConflict)
+		return
+	case job.Status.Failed:
+		if *jobStatus == job.Status.Success {
+			// This really shouldn't happen. The status should go to Started and Running first.
+			run.ExecutionDuration = j.Now().Sub(run.RanAt)
+			if run.NumberOfRetries > 0 {
+				j.Metadata.ErrorCount -= 1
+			}
+			j.Metadata.SuccessCount += 1
+			j.Metadata.LastSuccess = time.Now()
+		}
+	case job.Status.Started, job.Status.Running:
+		if *jobStatus == job.Status.Failed || *jobStatus == job.Status.Success {
+			updateMeta(jobStatus, j, run)
+		}
+	}
+	run.Status = *jobStatus
+}
+
+func updateMeta(jobStatus *job.JobStatus, j *job.Job, run *job.JobStat) {
+	run.ExecutionDuration = j.Now().Sub(run.RanAt)
+	if *jobStatus == job.Status.Failed {
+		if run.NumberOfRetries == 0 {
+			j.Metadata.ErrorCount += 1
+		}
+		j.Metadata.LastError = time.Now()
+	} else {
+		if run.NumberOfRetries > 0 {
+			j.Metadata.ErrorCount -= 1
+		}
+		j.Metadata.SuccessCount += 1
+		j.Metadata.LastSuccess = time.Now()
 	}
 }
 

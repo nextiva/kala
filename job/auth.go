@@ -92,7 +92,7 @@ func AuthHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		isAuthenticated, token := verifyToken(r)
 		if !isAuthenticated {
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		ctx := context.WithValue(r.Context(), AccessTokenKey, token)
@@ -102,6 +102,9 @@ func AuthHandler(next http.Handler) http.Handler {
 }
 
 func verifyToken(r *http.Request) (isValid bool, token string) {
+	if !strings.HasPrefix(r.RequestURI, "/api/v1") {
+		return true, ""
+	}
 	if verifier == nil {
 		return true, ""
 	}
