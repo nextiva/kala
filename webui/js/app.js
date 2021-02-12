@@ -43,22 +43,15 @@ var App = (function() {
             `
         },
     });
-    app.render();
-    // Initial data load
-    actions.getJobs()
-        .then(function() {
-            actions.getMetrics()
-        });
-});
-var navbar = new Reef('#nav', {
-    store: store,
-    router: router,
-    attachTo: app,
-    template: function(props, route) {
-        var activeForRoute = function(routeID) {
-            return route.id === routeID ? 'is-active' : ''
-        }
-        return html`
+    var navbar = new Reef('#nav', {
+        store: store,
+        router: router,
+        attachTo: app,
+        template: function(props, route) {
+            var activeForRoute = function(routeID) {
+                return route.id === routeID ? 'is-active' : ''
+            }
+            return html`
       <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
           <a class="navbar-item" href="/webui/">
@@ -97,16 +90,16 @@ var navbar = new Reef('#nav', {
         </div>
       </nav>
     `
-    },
-});
-var jobsTable = new Reef('#jobsTable', {
-    store: store,
-    attachTo: app,
-    template: function(props, route) {
-        var rows = Object.entries(props.jobs || {}).reduce(function(acc, entry, idx) {
-            var id = entry[0];
-            var job = entry[1];
-            return acc + html`
+        },
+    });
+    var jobsTable = new Reef('#jobsTable', {
+        store: store,
+        attachTo: app,
+        template: function(props, route) {
+            var rows = Object.entries(props.jobs || {}).reduce(function(acc, entry, idx) {
+                var id = entry[0];
+                var job = entry[1];
+                return acc + html`
         <tr>
           <td>${idx + 1}</td>
           <td><a onclick="return store.do('showJobDetail', '${id}')">${id}</a></td>
@@ -118,8 +111,8 @@ var jobsTable = new Reef('#jobsTable', {
           <td>${job.is_done}</td>
         </tr>
       `
-        }, '');
-        return html`
+            }, '');
+            return html`
       <table class="table is-fullwidth is-striped">
         <thead>
           <tr>
@@ -138,15 +131,15 @@ var jobsTable = new Reef('#jobsTable', {
         </tbody>
       </table>
     `
-    },
-});
-var jobDetail = new Reef('#jobDetailModal', {
-    store: store,
-    attachTo: app,
-    template: function(props, route) {
-        if (props.jobDetail) {
-            var id = props.jobDetail && props.jobDetail.id;
-            return html`
+        },
+    });
+    var jobDetail = new Reef('#jobDetailModal', {
+        store: store,
+        attachTo: app,
+        template: function(props, route) {
+            if (props.jobDetail) {
+                var id = props.jobDetail && props.jobDetail.id;
+                return html`
         <div class="modal ${props.jobDetail ? 'is-active' : ''}">
           <div class="modal-background" onclick="store.do('clearJobDetail')"></div>
            <div class="modal-card">
@@ -177,16 +170,16 @@ var jobDetail = new Reef('#jobDetailModal', {
           <button class="modal-close is-large" aria-label="close" onclick="store.do('clearJobDetail')"></button>
         </div>
       `
-        } else {
-            return '';
-        }
-    },
-});
-var metricsPanel = new Reef('#metricsPanel', {
-    store: store,
-    attachTo: app,
-    template: function(props, route) {
-        return html`
+            } else {
+                return '';
+            }
+        },
+    });
+    var metricsPanel = new Reef('#metricsPanel', {
+        store: store,
+        attachTo: app,
+        template: function(props, route) {
+            return html`
       <table class="table is-bordered">
         <thead>
           <tr>
@@ -230,19 +223,19 @@ var metricsPanel = new Reef('#metricsPanel', {
         </tbody>
       </table>
     `
-    },
-});
-var createPanel = new Reef('#createPage', {
-    store: store,
-    attachTo: app,
-    template: function(props, route) {
-        var detailPanelForType = function(createType) {
-            var err = function(fieldName, output) {
-                var err = props.createErr[fieldName]
-                return err ? (output || err) : ''
-            }
-            if (createType === 'local') {
-                return html`
+        },
+    });
+    var createPanel = new Reef('#createPage', {
+        store: store,
+        attachTo: app,
+        template: function(props, route) {
+            var detailPanelForType = function(createType) {
+                var err = function(fieldName, output) {
+                    var err = props.createErr[fieldName]
+                    return err ? (output || err) : ''
+                }
+                if (createType === 'local') {
+                    return html`
           <div class="field">
             <label class="label">Command</label>
             <div class="control">
@@ -251,11 +244,11 @@ var createPanel = new Reef('#createPage', {
             <p class="help is-danger">${props.createErr['command'] || ''}</p>
           </div>
         `
-            } else if (createType === 'remote') {
-                var methods = ["GET", "POST", "HEAD", "PUT", "DELETE", "CONNECT", "OPTIONS", "PATCH", "TRACE"].reduce(function(acc, method, idx) {
-                    return acc + html`<option value="${method}" ${idx === 0 && 'defaultSelected'}>${method}</option>`
-                }, '')
-                return html`
+                } else if (createType === 'remote') {
+                    var methods = ["GET", "POST", "HEAD", "PUT", "DELETE", "CONNECT", "OPTIONS", "PATCH", "TRACE"].reduce(function(acc, method, idx) {
+                        return acc + html`<option value="${method}" ${idx === 0 && 'defaultSelected'}>${method}</option>`
+                    }, '')
+                    return html`
           <fieldset>
             <div class="field">
               <label class="label">URL</label>
@@ -300,14 +293,14 @@ var createPanel = new Reef('#createPage', {
             </div>
           </fieldset>
         `
-            } else {
-                return html`<div>Unsupported type!</div>`
+                } else {
+                    return html`<div>Unsupported type!</div>`
+                }
             }
-        }
-        var checkedForType = function(t) {
-            return props.createType === t ? 'checked="checked"' : ''
-        }
-        return html`
+            var checkedForType = function(t) {
+                return props.createType === t ? 'checked="checked"' : ''
+            }
+            return html`
       <form id="createForm" onsubmit="return actions.submitCreateJob('#createForm')">
         <div class="columns">
           <div class="column is-one-third">
@@ -378,5 +371,13 @@ var createPanel = new Reef('#createPage', {
         </div>
       </form>
     `
-    },
+        },
+    });
+    app.render();
+    // Initial data load
+    actions.getJobs()
+        .then(function() {
+            actions.getMetrics()
+        });
 });
+
