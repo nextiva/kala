@@ -20,7 +20,11 @@
         });
     },
     getJob: function(id) {
-      return fetch(ApiJobEndpoint + id + '/')
+      return fetch(ApiJobEndpoint + id + '/', {
+        headers: {
+          'Authorization': 'Bearer ' + Auth.access_token()
+        }
+      })
         .then(function(response) {
           return response.json()
         })
@@ -37,7 +41,10 @@
     },
     disableJob: function(id) {
       return fetch(ApiJobEndpoint + 'disable/' + id + '/', {
-        method: 'post'
+        method: 'post',
+        headers: {
+          'Authorization': 'Bearer ' + Auth.access_token()
+        }
       })
         .catch(function(ex) {
           console.error('disabling job failed: ', ex)
@@ -45,7 +52,10 @@
     },
     enableJob: function(id) {
       return fetch(ApiJobEndpoint + 'enable/' + id + '/', {
-        method: 'post'
+        method: 'post',
+        headers: {
+          'Authorization': 'Bearer ' + Auth.access_token()
+        }
       })
         .catch(function(ex) {
           console.error('enabling job failed: ', ex)
@@ -53,7 +63,10 @@
     },
     runJob: function(id) {
       return fetch(ApiJobEndpoint + 'start/' + id + '/', {
-        method: 'post'
+        method: 'post',
+        headers: {
+          'Authorization': 'Bearer ' + Auth.access_token()
+        }
       })
         .catch(function(ex) {
           console.error('starting job failed: ', ex)
@@ -61,7 +74,10 @@
     },
     deleteJob: function(id) {
       return fetch(ApiJobEndpoint + id + '/', {
-        method: 'delete'
+        method: 'delete',
+        headers: {
+          'Authorization': 'Bearer ' + Auth.access_token()
+        }
       })
         .catch(function(ex) {
           console.error('deleting job failed: ', ex)
@@ -70,7 +86,10 @@
     createJob: function(job) {
       return fetch(ApiJobEndpoint, {
         method: 'post',
-        body: JSON.stringify(job)
+        body: JSON.stringify(job),
+        headers: {
+          'Authorization': 'Bearer ' + Auth.access_token()
+        }
       })
         .then(function(response) {
           return response.json()
@@ -86,13 +105,21 @@
         })
     },
     jobStats: function(id) {
-      return fetch(ApiJobEndpoint + 'stats/' + id + '/')
+      return fetch(ApiJobEndpoint + 'stats/' + id + '/', {
+        headers: {
+          'Authorization': 'Bearer ' + Auth.access_token()
+        }
+      })
         .catch(function(ex) {
           console.error('getting job stats failed: ', ex)
         })
     },
     metrics: function() {
-      return fetch(ApiBase + 'stats/')
+      return fetch(ApiBase + 'stats/', {
+        headers: {
+          'Authorization': 'Bearer ' + Auth.access_token()
+        }
+      })
         .then(function(resp) {
           return resp.json()
         })

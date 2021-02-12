@@ -1,10 +1,10 @@
 Reef.debug(true);
-
 var App = (function() {
     var app = new Reef('#app', {
         store: store,
         router: router,
         template: function (props, route) {
+            if (!props || !route) { return html`Loading data...`; }
             var activeForRoutes = function () {
                 var args = Array.prototype.slice.call(arguments);
                 return args.some(function (routeID) {
@@ -43,10 +43,13 @@ var App = (function() {
             `
         },
     });
-
     app.render();
+    // Initial data load
+    actions.getJobs()
+        .then(function() {
+            actions.getMetrics()
+        });
 });
-
 var navbar = new Reef('#nav', {
     store: store,
     router: router,
@@ -61,14 +64,12 @@ var navbar = new Reef('#nav', {
           <a class="navbar-item" href="/webui/">
             <img src="logo.png" height="28">
           </a>
-
           <a role="button" class="navbar-burger burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
           </a>
         </div>
-
         <div class="navbar-menu">
           <div class="navbar-start">
             <a class="navbar-item ${activeForRoute('metrics')}" href="metrics">
@@ -81,7 +82,6 @@ var navbar = new Reef('#nav', {
               Create
             </a>
           </div>
-
           <div class="navbar-end">
             <div class="navbar-item">
               <div class="buttons">
@@ -99,7 +99,6 @@ var navbar = new Reef('#nav', {
     `
     },
 });
-
 var jobsTable = new Reef('#jobsTable', {
     store: store,
     attachTo: app,
@@ -141,7 +140,6 @@ var jobsTable = new Reef('#jobsTable', {
     `
     },
 });
-
 var jobDetail = new Reef('#jobDetailModal', {
     store: store,
     attachTo: app,
@@ -184,7 +182,6 @@ var jobDetail = new Reef('#jobDetailModal', {
         }
     },
 });
-
 var metricsPanel = new Reef('#metricsPanel', {
     store: store,
     attachTo: app,
@@ -235,7 +232,6 @@ var metricsPanel = new Reef('#metricsPanel', {
     `
     },
 });
-
 var createPanel = new Reef('#createPage', {
     store: store,
     attachTo: app,
@@ -384,9 +380,3 @@ var createPanel = new Reef('#createPage', {
     `
     },
 });
-
-// Initial data load
-actions.getJobs()
-    .then(function() {
-        actions.getMetrics()
-    });
